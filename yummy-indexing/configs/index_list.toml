@@ -1,0 +1,10 @@
+[[index]]
+index_name = "es_lalalala"
+time = "0 * * * * * *"
+indexing_type = "static index"
+settings_path = "./indexing_settings/.."
+
+[[index]]
+index_name = "es_alba_job"
+time = "0 * * * * * *"
+indexing_type = "static index"
