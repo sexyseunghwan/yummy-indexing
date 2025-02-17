@@ -2,6 +2,10 @@
 
 use sea_orm::entity::prelude::*;
 
+use crate::entity::zero_possible_market;
+use crate::entity::store_recommend_tbl;
+use crate::entity::store;
+
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]
 #[sea_orm(table_name = "store")]
 pub struct Model {
@@ -21,6 +25,24 @@ pub struct Model {
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
-pub enum Relation {}
+pub enum Relation {
+    #[sea_orm(has_one = "super::zero_possible_market::Entity")]
+    ZeroPossibleMarket,
+    #[sea_orm(has_many = "super::store_recommend_tbl::Entity")]
+    StoreRecommendTbl,
+}
+
+impl Related<zero_possible_market::Entity> for store::Entity {
+    fn to() -> RelationDef {
+        Relation::ZeroPossibleMarket.def()
+    }
+}
+
+impl Related<store_recommend_tbl::Entity> for store::Entity {
+    fn to() -> RelationDef {
+        Relation::StoreRecommendTbl.def()
+    }
+}
+
 
 impl ActiveModelBehavior for ActiveModel {}

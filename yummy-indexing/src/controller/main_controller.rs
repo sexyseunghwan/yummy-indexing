@@ -5,6 +5,8 @@ use crate::services::query_service::*;
 
 use crate::configuration::{index_schedules_config::*, system_config::*};
 
+use crate::entity::store;
+
 // use crate::configuration::elasitc_index_name::*;
 
 #[derive(Debug, new)]
@@ -73,23 +75,8 @@ impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
     /// * Result<(), anyhow::Error>
     //pub async fn main_task(&self, index_schedule: IndexSchedules) -> Result<(), anyhow::Error> {
     pub async fn main_task(&self) -> Result<(), anyhow::Error> {
-        self.query_service.get_all_store_table(10).await?;
+        let stores = self.query_service.get_all_store_table(10000).await?;
 
-        //let limit: i64 = 10000;
-        //let mut offset: i64 = 0; // 초기 ID (최소값)
-
-        // loop {
-
-        //     let batch: Vec<Store> = self.query_service.get_all_store_table(offset, limit)?;
-
-        //     println!("{:?}", batch);
-
-        //     if batch.is_empty() {
-        //         break;
-        //     }
-
-        //     offset += limit;
-        // }
 
         Ok(())
     }

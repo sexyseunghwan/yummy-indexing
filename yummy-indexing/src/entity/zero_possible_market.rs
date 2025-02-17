@@ -2,6 +2,9 @@
 
 use sea_orm::entity::prelude::*;
 
+use crate::entity::store;
+use crate::entity::zero_possible_market;
+
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]
 #[sea_orm(table_name = "zero_possible_market")]
 pub struct Model {
@@ -16,6 +19,15 @@ pub struct Model {
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
-pub enum Relation {}
+pub enum Relation {
+    #[sea_orm(belongs_to = "super::store::Entity", from = "Column::Seq", to = "super::store::Column::Seq")]
+    Store,
+}
+
+impl Related<store::Entity> for zero_possible_market::Entity {
+    fn to() -> RelationDef {
+        Relation::Store.def()
+    }
+}
 
 impl ActiveModelBehavior for ActiveModel {}

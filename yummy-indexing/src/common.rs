@@ -75,8 +75,11 @@ pub use kafka::producer::{Producer, Record as KafkaRecord, RequiredAcks};
 
 pub use sea_orm::{
     ActiveModelBehavior, ColumnTrait, Database, DatabaseConnection, DeriveEntityModel, EntityTrait,
-    EnumIter, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Select,
+    EnumIter, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Select, JoinType, prelude::Expr, EntityName,
+    sea_query::{IntoTableRef, TableRef}
 };
+
+
 
 // pub use diesel::{
 //     dsl::count_star,

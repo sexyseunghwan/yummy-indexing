@@ -2,6 +2,9 @@
 
 use sea_orm::entity::prelude::*;
 
+use crate::entity::store_recommend_tbl;
+use crate::entity::recommend_tbl;
+
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]
 #[sea_orm(table_name = "recommend_tbl")]
 pub struct Model {
@@ -16,6 +19,15 @@ pub struct Model {
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
-pub enum Relation {}
+pub enum Relation {
+    #[sea_orm(has_many = "super::store_recommend_tbl::Entity")]
+    StoreRecommendTbl,
+}
+
+impl Related<store_recommend_tbl::Entity> for recommend_tbl::Entity {
+    fn to() -> RelationDef {
+        Relation::StoreRecommendTbl.def()
+    }
+}
 
 impl ActiveModelBehavior for ActiveModel {}
