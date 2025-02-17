@@ -2,8 +2,8 @@
 
 use sea_orm::entity::prelude::*;
 
-use crate::entity::store_recommend_tbl;
 use crate::entity::recommend_tbl;
+use crate::entity::store_recommend_tbl;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]
 #[sea_orm(table_name = "recommend_tbl")]

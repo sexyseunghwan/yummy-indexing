@@ -74,12 +74,12 @@ pub use num_format::{Locale, ToFormattedString};
 pub use kafka::producer::{Producer, Record as KafkaRecord, RequiredAcks};
 
 pub use sea_orm::{
-    ActiveModelBehavior, ColumnTrait, Database, DatabaseConnection, DeriveEntityModel, EntityTrait,
-    EnumIter, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Select, JoinType, prelude::Expr, EntityName,
-    sea_query::{IntoTableRef, TableRef}
+    prelude::{Expr, Decimal},
+    sea_query::{IntoTableRef, TableRef},
+    ActiveModelBehavior, ColumnTrait, Condition, Database, DatabaseConnection, DeriveEntityModel,
+    EntityName, EntityTrait, EnumIter, JoinType, PaginatorTrait, QueryFilter, QueryOrder,
+    QuerySelect, RelationTrait, Select, FromQueryResult
 };
-
-
 
 // pub use diesel::{
 //     dsl::count_star,

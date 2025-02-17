@@ -75,8 +75,10 @@ impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
     /// * Result<(), anyhow::Error>
     //pub async fn main_task(&self, index_schedule: IndexSchedules) -> Result<(), anyhow::Error> {
     pub async fn main_task(&self) -> Result<(), anyhow::Error> {
-        let stores = self.query_service.get_all_store_table(10000).await?;
+        let stores: Vec<crate::models::store_ro_elastic::StoreResult> =
+            self.query_service.get_all_store_table(10).await?;
 
+        //match self.es_query_service.post_indexing_data_by_bulk(index_alias_name, index_settings_path, data)
 
         Ok(())
     }
