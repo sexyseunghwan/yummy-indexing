@@ -3,18 +3,7 @@ use crate::common::*;
 use crate::services::es_query_service::*;
 use crate::services::query_service::*;
 
-// use crate::models::consume_prodt_detail::*;
-// use crate::models::consume_prodt_detail_es::*;
-// use crate::models::consume_prodt_keyword::*;
-// use crate::models::document_with_id::*;
-
-use crate::configuration::
-    {
-        index_schedules_config::*,
-        system_config::*
-        
-    };
-
+use crate::configuration::{index_schedules_config::*, system_config::*};
 
 // use crate::configuration::elasitc_index_name::*;
 
@@ -28,22 +17,22 @@ impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
     #[doc = "메인 스케쥴러 함수"]
     /// # Arguments
     /// * `index_schedule` - 인덱스 스케쥴 객체
-    /// 
+    ///
     /// # Returns
     /// * Result<(), anyhow::Error>
     pub async fn main_schedule_task(
         &self,
         index_schedule: IndexSchedules,
     ) -> Result<(), anyhow::Error> {
-        
-        let schedule: Schedule = Schedule::from_str(&index_schedule.time).expect("Failed to parse CRON expression");
-        
+        let schedule: Schedule =
+            Schedule::from_str(&index_schedule.time).expect("Failed to parse CRON expression");
+
         let system_config: Arc<SystemConfig> = get_system_config();
 
         let mut interval: Interval = tokio::time::interval(tokio::time::Duration::from_millis(
             system_config.schedule_term,
         ));
-        
+
         /* 한국 표준시 GMT + 9 */
         let kst_offset: FixedOffset = match FixedOffset::east_opt(9 * 3600) {
             Some(kst_offset) => kst_offset,
@@ -76,17 +65,32 @@ impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
         }
     }
 
-
     #[doc = "메인 작업 함수 -> 색인 진행 함수"]
     /// # Arguments
     /// * `index_schedule` - 인덱스 스케쥴 객체
     ///
     /// # Returns
     /// * Result<(), anyhow::Error>
-    pub async fn main_task(&self, index_schedule: IndexSchedules) -> Result<(), anyhow::Error> {
-        
-        info!("main task start: {}", index_schedule.index_name());
-        
+    //pub async fn main_task(&self, index_schedule: IndexSchedules) -> Result<(), anyhow::Error> {
+    pub async fn main_task(&self) -> Result<(), anyhow::Error> {
+        self.query_service.get_all_store_table(10).await?;
+
+        //let limit: i64 = 10000;
+        //let mut offset: i64 = 0; // 초기 ID (최소값)
+
+        // loop {
+
+        //     let batch: Vec<Store> = self.query_service.get_all_store_table(offset, limit)?;
+
+        //     println!("{:?}", batch);
+
+        //     if batch.is_empty() {
+        //         break;
+        //     }
+
+        //     offset += limit;
+        // }
+
         Ok(())
     }
 }

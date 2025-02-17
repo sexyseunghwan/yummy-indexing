@@ -7,8 +7,8 @@ pub use std::{
     future::Future,
     io::{BufReader, Write},
     ops::Deref, //time::Duration,
+    str::FromStr,
     sync::Arc,
-    str::FromStr
 };
 
 pub use rand::{prelude::SliceRandom, rngs::StdRng, SeedableRng};
@@ -16,7 +16,7 @@ pub use rand::{prelude::SliceRandom, rngs::StdRng, SeedableRng};
 pub use tokio::{
     io::AsyncReadExt,
     signal,
-    sync::{Mutex, MutexGuard},
+    sync::{Mutex, MutexGuard, OnceCell},
     task,
     time::{sleep, Duration, Interval},
 };
@@ -27,7 +27,9 @@ pub use log::{error, info, warn};
 
 pub use flexi_logger::{Age, Cleanup, Criterion, FileSpec, Logger, Naming, Record};
 
-pub use chrono::{DateTime, Datelike, NaiveDate, NaiveDateTime, NaiveTime, TimeZone, Utc, FixedOffset};
+pub use chrono::{
+    DateTime, Datelike, FixedOffset, NaiveDate, NaiveDateTime, NaiveTime, TimeZone, Utc,
+};
 pub use chrono_tz::Asia::Seoul;
 
 pub use serde::{Deserialize, Serialize};
@@ -71,13 +73,18 @@ pub use num_format::{Locale, ToFormattedString};
 
 pub use kafka::producer::{Producer, Record as KafkaRecord, RequiredAcks};
 
-pub use diesel::{
-    dsl::count_star,
-    mysql::MysqlConnection,
-    r2d2::{ConnectionManager, Pool, PooledConnection},
-    AsChangeset, ExpressionMethods, Insertable, NullableExpressionMethods, QueryDsl, Queryable,
-    QueryableByName, RunQueryDsl,
+pub use sea_orm::{
+    ActiveModelBehavior, ColumnTrait, Database, DatabaseConnection, DeriveEntityModel, EntityTrait,
+    EnumIter, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Select,
 };
+
+// pub use diesel::{
+//     dsl::count_star,
+//     mysql::MysqlConnection,
+//     r2d2::{ConnectionManager, Pool, PooledConnection},
+//     AsChangeset, ExpressionMethods, Insertable, NullableExpressionMethods, QueryDsl, Queryable,
+//     QueryableByName, RunQueryDsl, SelectableHelper
+// };
 
 pub use async_trait::async_trait;
 
@@ -91,4 +98,3 @@ pub use regex::Regex;
 pub use once_cell::sync::Lazy as once_lazy;
 
 pub use strsim::levenshtein;
-

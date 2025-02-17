@@ -1,25 +1,25 @@
 use crate::common::*;
 
-type MysqlPool = Pool<ConnectionManager<MysqlConnection>>;
+static SQL_DB_POOL: OnceCell<DatabaseConnection> = OnceCell::const_new();
 
-static POOL: once_lazy<Arc<MysqlPool>> = once_lazy::new(|| {
-    let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
-    let manager = ConnectionManager::<MysqlConnection>::new(&database_url);
-    Arc::new(
-        Pool::builder()
-            .build(manager)
-            .expect("Failed to create pool."),
-    )
-});
+#[doc = "SQL 커넥션 POOL을 초기화 해주는 함수"]
+pub async fn establish_connection() -> &'static DatabaseConnection {
+    SQL_DB_POOL
+        .get_or_init(|| async {
+            dotenv().ok();
+            let db_url: String =
+                env::var("DATABASE_URL").expect("DATABASE_URL must be set in .env");
 
-#[doc = "Functions that return MySQL connection information"]
-pub fn get_mysql_pool(
-) -> Result<PooledConnection<ConnectionManager<MysqlConnection>>, anyhow::Error> {
-    let pool = Arc::clone(&POOL);
-    let conn: PooledConnection<ConnectionManager<MysqlConnection>> = pool.get()?;
+            Database::connect(db_url)
+                .await
+                .expect("Database connection failed")
+        })
+        .await
+}
 
-    let pool_state = pool.state();
-    info!("idle_connections: {}", pool_state.idle_connections);
-
-    Ok(conn)
+#[doc = "SQL 커넥션 POOL을 가져와주는 함수"]
+pub fn get_db_pool() -> &'static DatabaseConnection {
+    SQL_DB_POOL
+        .get()
+        .expect("Database connection has not been initialized. Call establish_connection() first.")
 }

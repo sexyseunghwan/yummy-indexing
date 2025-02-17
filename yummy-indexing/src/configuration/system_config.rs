@@ -1,6 +1,7 @@
 use crate::common::*;
 
-static SYSTEM_CONFIG: once_lazy<Arc<SystemConfig>> = once_lazy::new(|| Arc::new(initiate_system_config()));
+static SYSTEM_CONFIG: once_lazy<Arc<SystemConfig>> =
+    once_lazy::new(|| Arc::new(initiate_system_config()));
 
 #[derive(Debug, Deserialize, Serialize, Getters, Clone, new)]
 #[getset(get = "pub")]
@@ -10,20 +11,23 @@ pub struct SystemConfig {
 
 #[doc = "SystemConfig 객체를 초기화해주는 함수"]
 pub fn initiate_system_config() -> SystemConfig {
-    
     let schedule_term: u64 = match env::var("SCHEDULE_TERM") {
-        Ok(schedule_term) => {
-            match schedule_term.parse::<u64>() {
-                Ok(schedule_term) => schedule_term,
-                Err(e) => {
-                    error!("[Error][initiate_system_config()] The 'schedule_term' information must be numeric.: {:?}", e);
-                    panic!("[Error][initiate_system_config()] The 'schedule_term' information must be numeric.: {:?}", e)
-                }
+        Ok(schedule_term) => match schedule_term.parse::<u64>() {
+            Ok(schedule_term) => schedule_term,
+            Err(e) => {
+                error!("[Error][initiate_system_config()] The 'schedule_term' information must be numeric.: {:?}", e);
+                panic!("[Error][initiate_system_config()] The 'schedule_term' information must be numeric.: {:?}", e)
             }
         },
         Err(e) => {
-            error!("[Error][initiate_system_config()] Information 'SCHEDULE_TERM' not found. : {:?}", e);
-            panic!("[Error][initiate_system_config()] Information 'SCHEDULE_TERM' not found. : {:?}", e);
+            error!(
+                "[Error][initiate_system_config()] Information 'SCHEDULE_TERM' not found. : {:?}",
+                e
+            );
+            panic!(
+                "[Error][initiate_system_config()] Information 'SCHEDULE_TERM' not found. : {:?}",
+                e
+            );
         }
     };
 
