@@ -13,11 +13,14 @@ pub trait QueryService {
         &self,
         batch_size: usize,
     ) -> Result<Vec<StoreResult>, anyhow::Error>;
-
     fn get_distinct_store_table(
         &self,
         stores: &Vec<StoreResult>,
     ) -> Result<Vec<DistinctStoreResult>, anyhow::Error>;
+    async fn get_updated_store_table(
+        &self,
+        recent_datetime: NaiveDateTime,
+    ) -> Result<(), anyhow::Error>;
 }
 
 #[derive(Debug, new)]
@@ -39,7 +42,7 @@ impl QueryService for QueryServicePub {
         let mut total_store_list: Vec<StoreResult> = Vec::new();
         let mut last_seq: Option<i32> = None;
 
-        let cur_kor_date: NaiveDateTime = get_current_kor_naive_datetime();
+        let cur_utc_date: NaiveDateTime = get_current_utc_naive_datetime();
 
         loop {
             let mut query: Select<store::Entity> = store::Entity::find()
@@ -54,7 +57,7 @@ impl QueryService for QueryServicePub {
                                 .add(Expr::col(recommend_tbl::Column::RecommendYn).eq("Y"))
                                 .add(
                                     Expr::col(store_recommend_tbl::Column::RecommendEndDt)
-                                        .gt(cur_kor_date),
+                                        .gt(cur_utc_date),
                                 )
                         }),
                 )
@@ -134,5 +137,70 @@ impl QueryService for QueryServicePub {
 
         let result: Vec<DistinctStoreResult> = store_map.into_values().collect();
         Ok(result)
+    }
+
+    #[doc = ""]
+    /// # Arguments
+    /// * `recent_datetime` - 가장 최신 날짜데이터
+    ///
+    /// # Returns
+    /// * Result<Vec<StoreResult>, anyhow::Error>
+    async fn get_updated_store_table(
+        &self,
+        recent_datetime: NaiveDateTime,
+    ) -> Result<(), anyhow::Error> {
+        let db: &DatabaseConnection = establish_connection().await;
+
+        let cur_utc_date: NaiveDateTime = get_current_utc_naive_datetime();
+
+        let query_filter: Condition = Condition::any()
+            .add(Expr::col(store::Column::RegDt).gt(recent_datetime))
+            .add(Expr::col(store::Column::ChgDt).gt(recent_datetime))
+            .add(Expr::col(zero_possible_market::Column::RegDt).gt(recent_datetime))
+            .add(Expr::col(zero_possible_market::Column::RegDt).gt(recent_datetime))
+            .add(Expr::col(store_recommend_tbl::Column::RegDt).gt(recent_datetime))
+            .add(Expr::col(store_recommend_tbl::Column::RegDt).gt(recent_datetime))
+            .add(Expr::col(recommend_tbl::Column::RegDt).gt(recent_datetime))
+            .add(Expr::col(recommend_tbl::Column::RegDt).gt(recent_datetime));
+
+        let query: Select<store::Entity> = store::Entity::find()
+            .left_join(zero_possible_market::Entity)
+            .left_join(store_recommend_tbl::Entity)
+            .join(
+                JoinType::LeftJoin,
+                store_recommend_tbl::Relation::RecommendTbl
+                    .def()
+                    .on_condition(move |_r, _| {
+                        Condition::all()
+                            .add(Expr::col(recommend_tbl::Column::RecommendYn).eq("Y"))
+                            .add(
+                                Expr::col(store_recommend_tbl::Column::RecommendEndDt)
+                                    .gt(cur_utc_date),
+                            )
+                    }),
+            )
+            .select_only()
+            .columns([
+                store::Column::Seq,
+                store::Column::Name,
+                store::Column::Type,
+                store::Column::Address,
+                store::Column::Lat,
+                store::Column::Lng,
+            ])
+            .expr_as(
+                Expr::col((
+                    zero_possible_market::Entity,
+                    zero_possible_market::Column::Name,
+                ))
+                .is_not_null(),
+                "zero_possible",
+            )
+            .column_as(recommend_tbl::Column::RecommendName, "recommend_name")
+            .filter(query_filter);
+
+        let mut store_results: Vec<StoreResult> = query.into_model().all(db).await?;
+
+        Ok(())
     }
 }

@@ -217,7 +217,7 @@ impl EsRepositoryPub {
                 }
             }
         }
-        
+
         Err(anyhow::anyhow!(
             "All Elasticsearch nodes failed. Last error: {:?}",
             last_error
@@ -368,7 +368,6 @@ impl EsRepository for EsRepositoryPub {
             .await
     }
 
-    
     #[doc = "Functions that alias specific index names"]
     /// # Arguments
     /// * `index_alias` - index alias name
@@ -381,7 +380,6 @@ impl EsRepository for EsRepositoryPub {
         index_alias: &str,
         index_name: &str,
     ) -> Result<(), anyhow::Error> {
-
         let response: Response = self
             .execute_on_any_node(|es_client| async move {
                 let actions: Value = json!({
@@ -389,7 +387,7 @@ impl EsRepository for EsRepositoryPub {
                         { "add": { "index": index_name, "alias": index_alias } }
                     ]
                 });
-                
+
                 let update_response: Response = es_client
                     .es_conn
                     .indices()
@@ -734,7 +732,6 @@ impl EsRepository for EsRepositoryPub {
     /// # Returns
     /// * Result<(), anyhow::Error>
     async fn check_index_exist(&self, index_name: &str) -> Result<Value, anyhow::Error> {
-        
         let response: Response = self
             .execute_on_any_node(|es_client| async move {
                 let response: Response = es_client
@@ -747,8 +744,7 @@ impl EsRepository for EsRepositoryPub {
                 Ok(response)
             })
             .await?;
-        
-        self.process_response("check_index_exist()", response)
-            .await
+
+        self.process_response("check_index_exist()", response).await
     }
 }

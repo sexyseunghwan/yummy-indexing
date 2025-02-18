@@ -76,26 +76,30 @@ impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
     /// # Returns
     /// * Result<(), anyhow::Error>
     async fn main_task(&self, index_schedule: IndexSchedules) -> Result<(), anyhow::Error> {
-
         let function_name: &str = index_schedule.function_name().as_str();
 
         match function_name {
             "store_static_index" => self.store_static_index(index_schedule).await?,
             "store_dynamic_index" => self.store_dynamic_index(index_schedule).await?,
-            _ => return Err(anyhow!("[Error][main_task()] The mapped function does not exist.: {}", function_name)) 
+            _ => {
+                return Err(anyhow!(
+                    "[Error][main_task()] The mapped function does not exist.: {}",
+                    function_name
+                ))
+            }
         }
 
         //let index_alias_name: &String = index_schedule.index_name();
 
         /* 해당 색인이 static/dynamic 인지 확인 */
         // if index_schedule.indexing_type() == "static" {
-        //     //self.es_query_service.post_indexing_data_by_bulk(index_alias_name, index_settings_path, data).await?;    
+        //     //self.es_query_service.post_indexing_data_by_bulk(index_alias_name, index_settings_path, data).await?;
         // } else if index_schedule.indexing_type() == "dynamic" {
 
         // } else {
         //     return Err(anyhow!("[Error][main_task()] Static index or dynamic index only."))
         // }
-        
+
         /* 중복이 존재하는 store 리스트 */
         // let stores: Vec<StoreResult> = self.query_service.get_all_store_table(10).await?;
 
@@ -106,13 +110,12 @@ impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
         // // for elem in stores_distinct {
         // //     println!("{:?}", elem);
         // // }
-        
+
         // /* Elasticsearch 색인 */
         // //let index_alias: &str = "yummy-index";
         // let index_alias: &str = "test-index";
-        
+
         // /* index_alias 에 대한 인덱스가 없을경우 새롭게 생성 */
-        
         // self.es_query_service
         //     .post_indexing_data_by_bulk::<DistinctStoreResult>(
         //         index_alias,
@@ -124,28 +127,40 @@ impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
         Ok(())
     }
 
-
     #[doc = "Store 객체를 정적색인 해주는 함수"]
     /// # Arguments
     /// * `index_schedule` - 인덱스 스케쥴 객체
     ///
     /// # Returns
     /// * Result<(), anyhow::Error>
-    async fn store_static_index(&self, index_schedule: IndexSchedules) -> Result<(), anyhow::Error> {
-
+    async fn store_static_index(
+        &self,
+        index_schedule: IndexSchedules,
+    ) -> Result<(), anyhow::Error> {
         let index_alias_name: &String = index_schedule.index_name();
         let index_setting_path: &str = match index_schedule.setting_path() {
             Some(index_setting_path) => index_setting_path.as_str(),
-            None => return Err(anyhow!("[Error][store_static_index()] Please specify 'setting_path' for index"))
+            None => {
+                return Err(anyhow!(
+                    "[Error][store_static_index()] Please specify 'setting_path' for index"
+                ))
+            }
         };
 
         let sql_batch_size: usize = match index_schedule.sql_batch_size() {
             Some(sql_batch_size) => *sql_batch_size,
-            None => return Err(anyhow!("[Error][store_static_index()] Please specify 'sql_batch_size' for index"))
+            None => {
+                return Err(anyhow!(
+                    "[Error][store_static_index()] Please specify 'sql_batch_size' for index"
+                ))
+            }
         };
 
         /* 중복이 존재하는 store 리스트 */
-        let stores: Vec<StoreResult> = self.query_service.get_all_store_table(sql_batch_size).await?;
+        let stores: Vec<StoreResult> = self
+            .query_service
+            .get_all_store_table(sql_batch_size)
+            .await?;
 
         /* 중복을 제외한 store 리스트 */
         let stores_distinct: Vec<DistinctStoreResult> =
@@ -159,20 +174,24 @@ impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
             )
             .await?;
 
-
         Ok(())
     }
 
-    
     #[doc = "Store 객체를 증분색인 해주는 함수"]
     /// # Arguments
     /// * `index_schedule` - 인덱스 스케쥴 객체
     ///
     /// # Returns
     /// * Result<(), anyhow::Error>
-    async fn store_dynamic_index(&self, index_schedule: IndexSchedules) -> Result<(), anyhow::Error> {  
-
+    async fn store_dynamic_index(
+        &self,
+        index_schedule: IndexSchedules,
+    ) -> Result<(), anyhow::Error> {
         let index_alias_name: &String = index_schedule.index_name();
+
+        /* 일단, 검색엔진에 색인된 정보중에 가장 최근의 timestamp 정보를 가져와 준다. */
+
+        /* 해당 timestamp 정보를 기준으로 더 최근 데이터를 DB 에서 가져와준다. */
 
         Ok(())
     }
@@ -187,11 +206,8 @@ impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
 
     //     let index_alias_name: &String = index_schedule.index_name();
 
-        
-
     //     Ok(())
     // }
-
 
     // #[doc = "동적색인 함수"]
     // /// # Arguments
@@ -201,9 +217,6 @@ impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
     // /// * Result<(), anyhow::Error>
     // async fn dynamic_index(&self, index_schedule: IndexSchedules) -> Result<(), anyhow::Error> {
 
-        
     //     Ok(())
     // }
-
-
 }

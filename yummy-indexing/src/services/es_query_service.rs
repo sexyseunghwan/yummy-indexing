@@ -1,3 +1,5 @@
+use mysql_async::prelude::Query;
+
 use crate::common::*;
 
 use crate::repository::es_repository::*;
@@ -13,6 +15,12 @@ pub trait EsQueryService {
         index_settings_path: &str,
         data: &Vec<T>,
     ) -> Result<(), anyhow::Error>;
+
+    async fn get_recent_index_datetime(
+        &self,
+        index_name: &str,
+        timestamp_field: &str,
+    ) -> Result<NaiveDateTime, anyhow::Error>;
 
     async fn get_test(&self) -> Result<(), anyhow::Error>;
 }
@@ -49,7 +57,7 @@ impl EsQueryService for EsQueryServicePub {
 
         /* Bulk post the data to the index above at once. */
         es_conn.bulk_indexing_query(&new_index_name, data).await?;
-        
+
         /* 해당 인덱스가 있는지 없는지 확인해준다. */
         let index_exists_yn: bool = match es_conn.check_index_exist(index_alias_name).await {
             Ok(_index_exists_yn) => true,
@@ -66,17 +74,17 @@ impl EsQueryService for EsQueryServicePub {
                 .await?;
 
             let old_index_name: String;
-            
+
             if let Some(first_key) = alias_resp.as_object().and_then(|map| map.keys().next()) {
                 old_index_name = first_key.to_string();
             } else {
                 return Err(anyhow!("[Error][post_indexing_data_by_bulk()] Failed to extract index name within 'index-alias'"));
             }
-    
+
             es_conn
                 .update_index_alias(index_alias_name, &new_index_name, &old_index_name)
                 .await?;
-            
+
             es_conn.delete_query(&old_index_name).await?;
         } else {
             /* 기존 인덱스가 존재하지 않는 경우 -> 새로운 인덱스를 생성해준다. */
@@ -91,9 +99,43 @@ impl EsQueryService for EsQueryServicePub {
         Ok(())
     }
 
+    #[doc = "특정 인덱스에서 가장 최신 날짜를 쿼리하는 함수"]
+    /// # Arguments
+    /// * `index_name` - Index name
+    /// * `timestamp_field` - Field name for time
+    ///
+    /// # Returns
+    /// * Result<NaiveDateTime, anyhow::Error>
+    async fn get_recent_index_datetime(
+        &self,
+        index_name: &str,
+        timestamp_field: &str,
+    ) -> Result<NaiveDateTime, anyhow::Error> {
+        let es_conn: ElasticConnGuard = get_elastic_guard_conn().await?;
+
+        let es_query: Value = json!({
+            "size":1,
+            "sort": [{ timestamp_field: "desc" }],
+            "_source": [timestamp_field]
+        });
+
+        let response: Value = es_conn.get_search_query(&es_query, index_name).await?;
+
+        let timestamp_str: &str = response["hits"]["hits"]
+            .as_array()
+            .and_then(|hits| hits.first())
+            .and_then(|first_hit| first_hit["_source"][timestamp_field].as_str())
+            .ok_or_else(|| {
+                anyhow!("[Error][get_recent_index_datetime()] Failed to parse 'timestamp'")
+            })?;
+
+        let timestamp: NaiveDateTime =
+            get_naive_datetime_from_str(timestamp_str, "%Y-%m-%dT%H:%M:%SZ")?;
+
+        Ok(timestamp)
+    }
 
     async fn get_test(&self) -> Result<(), anyhow::Error> {
-
         let es_conn: ElasticConnGuard = get_elastic_guard_conn().await?;
 
         let test = es_conn.check_index_exist("kakrftel").await?;
