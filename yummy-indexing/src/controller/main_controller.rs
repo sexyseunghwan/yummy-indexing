@@ -5,6 +5,8 @@ use crate::services::query_service::*;
 
 use crate::configuration::{index_schedules_config::*, system_config::*};
 
+use crate::models::store_to_elastic::*;
+
 use crate::entity::store;
 
 // use crate::configuration::elasitc_index_name::*;
@@ -75,10 +77,27 @@ impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
     /// * Result<(), anyhow::Error>
     //pub async fn main_task(&self, index_schedule: IndexSchedules) -> Result<(), anyhow::Error> {
     pub async fn main_task(&self) -> Result<(), anyhow::Error> {
-        let stores: Vec<crate::models::store_ro_elastic::StoreResult> =
-            self.query_service.get_all_store_table(10).await?;
+        /* 중복이 존재하는 store 리스트 */
+        let stores: Vec<StoreResult> = self.query_service.get_all_store_table(10).await?;
 
-        //match self.es_query_service.post_indexing_data_by_bulk(index_alias_name, index_settings_path, data)
+        /* 중복을 제외한 store 리스트 */
+        let stores_distinct: Vec<DistinctStoreResult> =
+            self.query_service.get_distinct_store_table(&stores)?;
+
+        // for elem in stores_distinct {
+        //     println!("{:?}", elem);
+        // }
+
+        /* Elasticsearch 색인 */
+        let index_alias: &str = "yummy-index";
+
+        self.es_query_service
+            .post_indexing_data_by_bulk::<DistinctStoreResult>(
+                index_alias,
+                "./indexing_settings/store_infos.json",
+                &stores_distinct,
+            )
+            .await?;
 
         Ok(())
     }

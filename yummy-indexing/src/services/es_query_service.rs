@@ -47,7 +47,7 @@ impl EsQueryService for EsQueryServicePub {
 
         /* Bulk post the data to the index above at once. */
         es_conn.bulk_indexing_query(&new_index_name, data).await?;
-
+        
         /* Change alias */
         let alias_resp: Value = es_conn
             .get_indexes_mapping_by_alias(index_alias_name)
@@ -58,7 +58,7 @@ impl EsQueryService for EsQueryServicePub {
         } else {
             return Err(anyhow!("[Error][post_indexing_data_by_bulk()] Failed to extract index name within 'index-alias'"));
         }
-
+        
         es_conn
             .update_index_alias(index_alias_name, &new_index_name, &old_index_name)
             .await?;

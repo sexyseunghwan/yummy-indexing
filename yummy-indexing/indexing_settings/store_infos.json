@@ -46,22 +46,14 @@
   },
   "mappings" : {
     "properties" : {
-      "@timestamp" : {
-        "type" : "date"
-      },
-      "cur_timestamp" : {
-        "type" : "date"
-      },
-      "prodt_money" : {
-        "type" : "long"
-      },
-      "prodt_name" : {
-        "type" : "text",
-        "analyzer" : "korean"
-      },
-      "prodt_type" : {
-        "type" : "keyword"
-      }
+      "seq": { "type": "integer" },
+      "name": { "type": "text", "fields": { "keyword": { "type": "keyword" } } },
+      "type": { "type": "keyword", "null_value": "NULL" },
+      "address": { "type": "text", "fields": { "keyword": { "type": "keyword" } }},
+      "lat": { "type": "double" },
+      "lng": { "type": "double" },
+      "zero_possible": { "type": "boolean" },
+      "recommend_names": { "type": "text", "fields": { "keyword": { "type": "keyword" } } }
     }
   }
 }

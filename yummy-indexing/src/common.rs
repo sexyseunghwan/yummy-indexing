@@ -74,11 +74,11 @@ pub use num_format::{Locale, ToFormattedString};
 pub use kafka::producer::{Producer, Record as KafkaRecord, RequiredAcks};
 
 pub use sea_orm::{
-    prelude::{Expr, Decimal},
-    sea_query::{IntoTableRef, TableRef},
+    prelude::{Decimal, Expr},
+    sea_query::{Alias, IntoTableRef, TableRef},
     ActiveModelBehavior, ColumnTrait, Condition, Database, DatabaseConnection, DeriveEntityModel,
-    EntityName, EntityTrait, EnumIter, JoinType, PaginatorTrait, QueryFilter, QueryOrder,
-    QuerySelect, RelationTrait, Select, FromQueryResult
+    EntityName, EntityTrait, EnumIter, FromQueryResult, JoinType, PaginatorTrait, QueryFilter,
+    QueryOrder, QuerySelect, RelationTrait, Select,
 };
 
 // pub use diesel::{

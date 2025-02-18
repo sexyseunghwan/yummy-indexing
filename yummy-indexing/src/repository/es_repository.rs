@@ -311,10 +311,10 @@ impl EsRepository for EsRepositoryPub {
         response: Response,
     ) -> Result<Value, anyhow::Error> {
         if response.status_code().is_success() {
-            let response_body = response.json::<Value>().await?;
+            let response_body: Value = response.json::<Value>().await?;
             Ok(response_body)
         } else {
-            let error_body = response.text().await?;
+            let error_body: String = response.text().await?;
             Err(anyhow!(
                 "[Elasticsearch Error][{}] response status is failed: {:?}",
                 function_name,

@@ -13,3 +13,15 @@ pub struct StoreResult {
     pub zero_possible: bool,
     pub recommend_name: Option<String>,
 }
+
+#[derive(Debug, new, Serialize)]
+pub struct DistinctStoreResult {
+    pub seq: i32,
+    pub name: String,
+    pub r#type: Option<String>,
+    pub address: Option<String>,
+    pub lat: Decimal,
+    pub lng: Decimal,
+    pub zero_possible: bool,
+    pub recommend_names: Vec<String>,
+}

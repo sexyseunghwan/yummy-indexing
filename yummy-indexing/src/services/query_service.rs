@@ -1,8 +1,6 @@
-use sea_orm::sea_query::Alias;
-
 use crate::common::*;
 
-use crate::models::store_ro_elastic::*;
+use crate::models::store_to_elastic::*;
 
 use crate::repository::mysql_repository::*;
 
@@ -15,6 +13,11 @@ pub trait QueryService {
         &self,
         batch_size: usize,
     ) -> Result<Vec<StoreResult>, anyhow::Error>;
+
+    fn get_distinct_store_table(
+        &self,
+        stores: &Vec<StoreResult>,
+    ) -> Result<Vec<DistinctStoreResult>, anyhow::Error>;
 }
 
 #[derive(Debug, new)]
@@ -91,5 +94,43 @@ impl QueryService for QueryServicePub {
         }
 
         Ok(total_store_list)
+    }
+
+    #[doc = "색인할 Store 정보를 조회해주는 함수 -> 중복 제거"]
+    /// # Arguments
+    /// * `stores` - store 데이터 객체 리스트
+    ///
+    /// # Returns
+    /// * Result<Vec<DistinctStoreResult>, anyhow::Error>
+    fn get_distinct_store_table(
+        &self,
+        stores: &Vec<StoreResult>,
+    ) -> Result<Vec<DistinctStoreResult>, anyhow::Error> {
+        let mut store_map: HashMap<i32, DistinctStoreResult> = HashMap::new();
+
+        for store in stores {
+            store_map
+                .entry(store.seq)
+                .and_modify(|existing| {
+                    if let Some(recommend) = &store.recommend_name {
+                        existing.recommend_names.push(recommend.to_string());
+                    }
+                })
+                .or_insert_with(|| {
+                    DistinctStoreResult::new(
+                        store.seq,
+                        store.name.clone(),
+                        store.r#type.clone(),
+                        store.address.clone(),
+                        store.lat,
+                        store.lng,
+                        store.zero_possible,
+                        store.recommend_name.clone().map_or(vec![], |r| vec![r]),
+                    )
+                });
+        }
+
+        let result: Vec<DistinctStoreResult> = store_map.into_values().collect();
+        Ok(result)
     }
 }
