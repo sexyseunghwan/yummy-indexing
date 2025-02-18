@@ -14,10 +14,18 @@ pub fn get_str_from_naive_datetime(naive_datetime: NaiveDateTime) -> String {
     naive_datetime.format("%Y-%m-%dT%H:%M:%SZ").to_string()
 }
 
-#[doc = "Function that returns real-time UTC time to string"]
+#[doc = "Function that returns real-time KOR time to string"]
 pub fn get_str_curdatetime() -> String {
-    let kor_now = get_current_kor_naive_datetime();
-    let formatted_time = kor_now.format("%Y-%m-%dT%H:%M:%SZ").to_string();
+    let kor_now: NaiveDateTime = get_current_kor_naive_datetime();
+    let formatted_time: String = kor_now.format("%Y-%m-%dT%H:%M:%SZ").to_string();
+
+    formatted_time
+}
+
+#[doc = "Function that returns real-time UTC time to string"]
+pub fn get_str_curdatetime_utc() -> String {
+    let utc_time: NaiveDateTime = get_current_utc_naive_datetime();
+    let formatted_time: String = utc_time.format("%Y-%m-%dT%H:%M:%SZ").to_string();
 
     formatted_time
 }
@@ -49,6 +57,12 @@ pub fn get_current_kor_naive_datetime() -> NaiveDateTime {
     let kst_time: DateTime<chrono_tz::Tz> = utc_now.with_timezone(&Seoul);
 
     kst_time.naive_local()
+}
+
+#[doc = "Functions that make the current date (UTC time) a 'NaiveDateTime' data type"]
+pub fn get_current_utc_naive_datetime() -> NaiveDateTime {
+    let utc_now: DateTime<Utc> = Utc::now();
+    utc_now.naive_local()
 }
 
 /*

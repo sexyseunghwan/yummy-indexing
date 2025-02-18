@@ -107,6 +107,7 @@ impl QueryService for QueryServicePub {
         stores: &Vec<StoreResult>,
     ) -> Result<Vec<DistinctStoreResult>, anyhow::Error> {
         let mut store_map: HashMap<i32, DistinctStoreResult> = HashMap::new();
+        let cur_time_utc: String = get_str_curdatetime_utc();
 
         for store in stores {
             store_map
@@ -118,6 +119,7 @@ impl QueryService for QueryServicePub {
                 })
                 .or_insert_with(|| {
                     DistinctStoreResult::new(
+                        cur_time_utc.to_string(),
                         store.seq,
                         store.name.clone(),
                         store.r#type.clone(),

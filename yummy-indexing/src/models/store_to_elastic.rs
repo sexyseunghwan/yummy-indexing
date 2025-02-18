@@ -16,9 +16,10 @@ pub struct StoreResult {
     pub recommend_name: Option<String>,
 }
 
-#[doc = "Elasticsearch 와 맵핑할 구조체"]
-#[derive(Debug, new, Serialize)]
+#[doc = "Elasticsearch 와 mapping 할 구조체"]
+#[derive(Debug, Serialize, new)]
 pub struct DistinctStoreResult {
+    pub timestamp: String,
     pub seq: i32,
     pub name: String,
     pub r#type: Option<String>,

@@ -39,7 +39,7 @@ impl EsQueryService for EsQueryServicePub {
         let es_conn: ElasticConnGuard = get_elastic_guard_conn().await?;
 
         /* Put today's date time on the index you want to create. */
-        let curr_time: String = get_current_kor_naive_datetime()
+        let curr_time: String = get_current_utc_naive_datetime()
             .format("%Y%m%d%H%M%S")
             .to_string();
         let new_index_name: String = format!("{}-{}", index_alias_name, curr_time);
@@ -84,7 +84,7 @@ impl EsQueryService for EsQueryServicePub {
                 .create_index_alias(index_alias_name, &new_index_name)
                 .await?;
         }
-        
+
         /* Functions to enable search immediately after index */
         es_conn.refresh_index(index_alias_name).await?;
 

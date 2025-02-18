@@ -163,7 +163,7 @@ impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
         Ok(())
     }
 
-
+    
     #[doc = "Store 객체를 증분색인 해주는 함수"]
     /// # Arguments
     /// * `index_schedule` - 인덱스 스케쥴 객체
@@ -172,7 +172,7 @@ impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
     /// * Result<(), anyhow::Error>
     async fn store_dynamic_index(&self, index_schedule: IndexSchedules) -> Result<(), anyhow::Error> {  
 
-        info!("Hello");
+        let index_alias_name: &String = index_schedule.index_name();
 
         Ok(())
     }
