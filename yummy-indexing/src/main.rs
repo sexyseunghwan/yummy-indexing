@@ -45,31 +45,38 @@ async fn main() {
         Arc::new(MainController::new(query_service, es_query_service));
 
     /* 모니터링 대상이 되는 색인될 인덱스 정보들 */
-    // let index_schdules: IndexSchedulesConfig =
-    //     match read_toml_from_file::<IndexSchedulesConfig>(&INDEX_LIST_PATH) {
-    //         Ok(index_schdules) => index_schdules,
-    //         Err(e) => {
-    //             error!("{:?}", e);
-    //             panic!("{:?}", e);
-    //         }
-    //     };
+    let index_schdules: IndexSchedulesConfig =
+        match read_toml_from_file::<IndexSchedulesConfig>(&INDEX_LIST_PATH) {
+            Ok(index_schdules) => index_schdules,
+            Err(e) => {
+                error!("{:?}", e);
+                panic!("{:?}", e);
+            }
+        };
 
-    controller_arc.main_task().await.unwrap();
+    //controller_arc.main_task().await.unwrap();
 
     /*
         각 인덱스 별로 모니터링을 비동기적으로 실시해준다.
         스케쥴링 대기 작업 진행
     */
-    // for index in index_schdules.index {
-    //     let index_clone: IndexSchedules = index.clone();
+    for index in index_schdules.index {
+        let index_clone: IndexSchedules = index.clone();
 
-    //     let controller_arc_clone: Arc<MainController<QueryServicePub, EsQueryServicePub>> =
-    //         Arc::clone(&controller_arc);
+        let controller_arc_clone: Arc<MainController<QueryServicePub, EsQueryServicePub>> =
+            Arc::clone(&controller_arc);
 
-    //     tokio::spawn(async move {
-    //         if let Err(e) = controller_arc_clone.main_schedule_task(index_clone).await {
-    //             error!("[Error][main_schedule_task] {:?}", e);
-    //         }
-    //     });
-    // }
+        tokio::spawn(async move {
+            if let Err(e) = controller_arc_clone.main_schedule_task(index_clone).await {
+                error!("[Error][main_schedule_task] {:?}", e);
+            }
+        });
+    }
+    
+    /* 모두 서브테스크로 실행되므로 아래와 같이 메인 태스크를 계속 유지시켜줘야 한다. */
+    tokio::select! {
+        _ = signal::ctrl_c() => {
+            info!("Received Ctrl+C, shutting down...");
+        }
+    }
 }

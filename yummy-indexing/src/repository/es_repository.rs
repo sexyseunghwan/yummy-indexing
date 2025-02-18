@@ -120,6 +120,11 @@ pub trait EsRepository {
         new_index_name: &str,
         old_index_name: &str,
     ) -> Result<(), anyhow::Error>;
+    async fn create_index_alias(
+        &self,
+        index_alias: &str,
+        index_name: &str,
+    ) -> Result<(), anyhow::Error>;
     async fn bulk_indexing_query<T: Serialize + Send + Sync>(
         &self,
         index_name: &str,
@@ -152,6 +157,7 @@ pub trait EsRepository {
 
     async fn clear_scroll_info(&self, scroll_id: &str) -> Result<(), anyhow::Error>;
     async fn refresh_index(&self, index_name: &str) -> Result<(), anyhow::Error>;
+    async fn check_index_exist(&self, index_name: &str) -> Result<Value, anyhow::Error>;
 }
 
 #[derive(Debug, Getters, Clone)]
@@ -174,7 +180,7 @@ impl EsRepositoryPub {
             let es_url: Url = Url::parse(&parse_url)?;
             let conn_pool: SingleNodeConnectionPool = SingleNodeConnectionPool::new(es_url);
 
-            let mut headers = HeaderMap::new();
+            let mut headers: HeaderMap = HeaderMap::new();
             headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
 
             let transport: Transport = TransportBuilder::new(conn_pool)
@@ -197,10 +203,10 @@ impl EsRepositoryPub {
         F: Fn(EsClient) -> Fut + Send + Sync,
         Fut: Future<Output = Result<Response, anyhow::Error>> + Send,
     {
-        let mut last_error = None;
+        let mut last_error: Option<anyhow::Error> = None;
 
-        let mut rng = StdRng::from_entropy();
-        let mut shuffled_clients = self.es_clients.clone();
+        let mut rng: StdRng = StdRng::from_entropy();
+        let mut shuffled_clients: Vec<EsClient> = self.es_clients.clone();
         shuffled_clients.shuffle(&mut rng);
 
         for es_client in shuffled_clients {
@@ -211,7 +217,7 @@ impl EsRepositoryPub {
                 }
             }
         }
-
+        
         Err(anyhow::anyhow!(
             "All Elasticsearch nodes failed. Last error: {:?}",
             last_error
@@ -339,14 +345,14 @@ impl EsRepository for EsRepositoryPub {
     ) -> Result<(), anyhow::Error> {
         let response: Response = self
             .execute_on_any_node(|es_client| async move {
-                let actions = json!({
+                let actions: Value = json!({
                     "actions": [
                         { "remove": { "index": old_index_name, "alias": index_alias } },
                         { "add": { "index": new_index_name, "alias": index_alias } }
                     ]
                 });
 
-                let update_response = es_client
+                let update_response: Response = es_client
                     .es_conn
                     .indices()
                     .update_aliases()
@@ -362,6 +368,44 @@ impl EsRepository for EsRepositoryPub {
             .await
     }
 
+    
+    #[doc = "Functions that alias specific index names"]
+    /// # Arguments
+    /// * `index_alias` - index alias name
+    /// * `index_name` - Index name to be newly mapped to alias
+    ///
+    /// # Returns
+    /// * Result<(), anyhow::Error>
+    async fn create_index_alias(
+        &self,
+        index_alias: &str,
+        index_name: &str,
+    ) -> Result<(), anyhow::Error> {
+
+        let response: Response = self
+            .execute_on_any_node(|es_client| async move {
+                let actions: Value = json!({
+                    "actions": [
+                        { "add": { "index": index_name, "alias": index_alias } }
+                    ]
+                });
+                
+                let update_response: Response = es_client
+                    .es_conn
+                    .indices()
+                    .update_aliases()
+                    .body(actions)
+                    .send()
+                    .await?;
+
+                Ok(update_response)
+            })
+            .await?;
+
+        self.process_response_empty("create_index_alias()", response)
+            .await
+    }
+
     #[doc = "Functions that return the index name mapped to Elasticsearch alias"]
     /// # Arguments
     /// * `index_alias_name` - index alias name
@@ -374,7 +418,7 @@ impl EsRepository for EsRepositoryPub {
     ) -> Result<Value, anyhow::Error> {
         let response: Response = self
             .execute_on_any_node(|es_client| async move {
-                let response = es_client
+                let response: Response = es_client
                     .es_conn
                     .indices()
                     .get_alias(IndicesGetAliasParts::Name(&[index_alias_name]))
@@ -403,7 +447,7 @@ impl EsRepository for EsRepositoryPub {
     ) -> Result<(), anyhow::Error> {
         let response: Response = self
             .execute_on_any_node(|es_client| async move {
-                let response = es_client
+                let response: Response = es_client
                     .es_conn
                     .indices()
                     .create(IndicesCreateParts::Index(index_name))
@@ -443,7 +487,7 @@ impl EsRepository for EsRepositoryPub {
                     ops.push(BulkOperation::index(json_value).into());
                 }
 
-                let response = es_client
+                let response: Response = es_client
                     .es_conn
                     .bulk(BulkParts::Index(index_name))
                     .body(ops)
@@ -464,7 +508,7 @@ impl EsRepository for EsRepositoryPub {
     /// # Returns
     /// * Result<(), anyhow::Error>
     async fn clear_scroll_info(&self, scroll_id: &str) -> Result<(), anyhow::Error> {
-        let response = self
+        let response: Response = self
             .execute_on_any_node(|es_client| async move {
                 let response = es_client
                     .es_conn
@@ -492,7 +536,7 @@ impl EsRepository for EsRepositoryPub {
         scroll_duration: &str,
         scroll_id: &str,
     ) -> Result<Value, anyhow::Error> {
-        let response = self
+        let response: Response = self
             .execute_on_any_node(|es_client| async move {
                 let scroll_response = es_client
                     .es_conn
@@ -523,7 +567,7 @@ impl EsRepository for EsRepositoryPub {
         scroll_duration: &str,
         es_query: &Value,
     ) -> Result<Value, anyhow::Error> {
-        let response = self
+        let response: Response = self
             .execute_on_any_node(|es_client| async move {
                 let response = es_client
                     .es_conn
@@ -553,7 +597,7 @@ impl EsRepository for EsRepositoryPub {
         es_query: &Value,
         index_name: &str,
     ) -> Result<Value, anyhow::Error> {
-        let response = self
+        let response: Response = self
             .execute_on_any_node(|es_client| async move {
                 let response = es_client
                     .es_conn
@@ -595,7 +639,7 @@ impl EsRepository for EsRepositoryPub {
     /// # Returns
     /// * Result<(), anyhow::Error>
     async fn post_query(&self, document: &Value, index_name: &str) -> Result<(), anyhow::Error> {
-        let response = self
+        let response: Response = self
             .execute_on_any_node(|es_client| async move {
                 let response = es_client
                     .es_conn
@@ -618,7 +662,7 @@ impl EsRepository for EsRepositoryPub {
     /// # Returns
     /// * Result<(), anyhow::Error>
     async fn delete_query(&self, index_name: &str) -> Result<(), anyhow::Error> {
-        let response = self
+        let response: Response = self
             .execute_on_any_node(|es_client| async move {
                 let response = es_client
                     .es_conn
@@ -643,7 +687,7 @@ impl EsRepository for EsRepositoryPub {
     /// # Returns
     /// * Result<(), anyhow::Error>
     async fn delete_query_doc(&self, doc_id: &str, index_name: &str) -> Result<(), anyhow::Error> {
-        let response = self
+        let response: Response = self
             .execute_on_any_node(|es_client| async move {
                 let response = es_client
                     .es_conn
@@ -666,7 +710,7 @@ impl EsRepository for EsRepositoryPub {
     /// # Returns
     /// * Result<(), anyhow::Error>
     async fn refresh_index(&self, index_name: &str) -> Result<(), anyhow::Error> {
-        let response = self
+        let response: Response = self
             .execute_on_any_node(|es_client| async move {
                 let response = es_client
                     .es_conn
@@ -679,7 +723,32 @@ impl EsRepository for EsRepositoryPub {
             })
             .await?;
 
-        self.process_response_empty("delete_query_doc()", response)
+        self.process_response_empty("refresh_index()", response)
+            .await
+    }
+
+    #[doc = "Function that checks if an index exists"]
+    /// # Arguments
+    /// * `index_name` - Index name to be find
+    ///
+    /// # Returns
+    /// * Result<(), anyhow::Error>
+    async fn check_index_exist(&self, index_name: &str) -> Result<Value, anyhow::Error> {
+        
+        let response: Response = self
+            .execute_on_any_node(|es_client| async move {
+                let response: Response = es_client
+                    .es_conn
+                    .indices()
+                    .get(IndicesGetParts::Index(&[index_name]))
+                    .send()
+                    .await?;
+
+                Ok(response)
+            })
+            .await?;
+        
+        self.process_response("check_index_exist()", response)
             .await
     }
 }

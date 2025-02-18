@@ -1,5 +1,7 @@
 use crate::common::*;
 
+
+#[doc = "MySQL 와 맵핑할 구조체"]
 #[derive(Debug, FromQueryResult)]
 pub struct StoreResult {
     pub seq: i32,
@@ -14,6 +16,7 @@ pub struct StoreResult {
     pub recommend_name: Option<String>,
 }
 
+#[doc = "Elasticsearch 와 맵핑할 구조체"]
 #[derive(Debug, new, Serialize)]
 pub struct DistinctStoreResult {
     pub seq: i32,

@@ -7,6 +7,8 @@ pub struct IndexSchedules {
     pub time: String,
     pub indexing_type: String,
     pub setting_path: Option<String>,
+    pub function_name: String,
+    pub sql_batch_size: Option<usize>
 }
 
 #[derive(Debug, Deserialize, Serialize, Getters, Clone)]

@@ -13,6 +13,8 @@ pub trait EsQueryService {
         index_settings_path: &str,
         data: &Vec<T>,
     ) -> Result<(), anyhow::Error>;
+
+    async fn get_test(&self) -> Result<(), anyhow::Error>;
 }
 
 #[derive(Debug, new)]
@@ -48,24 +50,55 @@ impl EsQueryService for EsQueryServicePub {
         /* Bulk post the data to the index above at once. */
         es_conn.bulk_indexing_query(&new_index_name, data).await?;
         
-        /* Change alias */
-        let alias_resp: Value = es_conn
-            .get_indexes_mapping_by_alias(index_alias_name)
-            .await?;
-        let old_index_name: String;
-        if let Some(first_key) = alias_resp.as_object().and_then(|map| map.keys().next()) {
-            old_index_name = first_key.to_string();
+        /* 해당 인덱스가 있는지 없는지 확인해준다. */
+        let index_exists_yn: bool = match es_conn.check_index_exist(index_alias_name).await {
+            Ok(_index_exists_yn) => true,
+            Err(e) => {
+                error!("[Error][post_indexing_data_by_bulk()] An index starting with that name does not exist.: {}, {:?}", index_alias_name, e);
+                false
+            }
+        };
+
+        if index_exists_yn {
+            /* 기존 인덱스가 존재하는 경우 */
+            let alias_resp: Value = es_conn
+                .get_indexes_mapping_by_alias(index_alias_name)
+                .await?;
+
+            let old_index_name: String;
+            
+            if let Some(first_key) = alias_resp.as_object().and_then(|map| map.keys().next()) {
+                old_index_name = first_key.to_string();
+            } else {
+                return Err(anyhow!("[Error][post_indexing_data_by_bulk()] Failed to extract index name within 'index-alias'"));
+            }
+    
+            es_conn
+                .update_index_alias(index_alias_name, &new_index_name, &old_index_name)
+                .await?;
+            
+            es_conn.delete_query(&old_index_name).await?;
         } else {
-            return Err(anyhow!("[Error][post_indexing_data_by_bulk()] Failed to extract index name within 'index-alias'"));
+            /* 기존 인덱스가 존재하지 않는 경우 -> 새로운 인덱스를 생성해준다. */
+            es_conn
+                .create_index_alias(index_alias_name, &new_index_name)
+                .await?;
         }
         
-        es_conn
-            .update_index_alias(index_alias_name, &new_index_name, &old_index_name)
-            .await?;
-        es_conn.delete_query(&old_index_name).await?;
-
         /* Functions to enable search immediately after index */
         es_conn.refresh_index(index_alias_name).await?;
+
+        Ok(())
+    }
+
+
+    async fn get_test(&self) -> Result<(), anyhow::Error> {
+
+        let es_conn: ElasticConnGuard = get_elastic_guard_conn().await?;
+
+        let test = es_conn.check_index_exist("kakrftel").await?;
+
+        println!("{:?}", test);
 
         Ok(())
     }
