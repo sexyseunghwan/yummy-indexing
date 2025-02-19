@@ -1,13 +1,5 @@
 [[index]]
 index_name = "yummy-index"
 time = "0 * * * * * *"
-indexing_type = "static"
-setting_path = "./indexing_settings/store_infos.json"
-function_name = "store_static_index"
-sql_batch_size = 10
-
-[[index]]
-index_name = "yummy-index"
-time = "0 * * * * * *"
 indexing_type = "dynamic"
 function_name = "store_dynamic_index"

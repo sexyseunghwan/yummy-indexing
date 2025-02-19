@@ -20,7 +20,7 @@ pub trait QueryService {
     async fn get_updated_store_table(
         &self,
         recent_datetime: NaiveDateTime,
-    ) -> Result<(), anyhow::Error>;
+    ) -> Result<Vec<StoreResult>, anyhow::Error>;
 }
 
 #[derive(Debug, new)]
@@ -139,7 +139,7 @@ impl QueryService for QueryServicePub {
         Ok(result)
     }
 
-    #[doc = ""]
+    #[doc = "store 데이터의 증분색인을 위한 함수"]
     /// # Arguments
     /// * `recent_datetime` - 가장 최신 날짜데이터
     ///
@@ -148,21 +148,21 @@ impl QueryService for QueryServicePub {
     async fn get_updated_store_table(
         &self,
         recent_datetime: NaiveDateTime,
-    ) -> Result<(), anyhow::Error> {
+    ) -> Result<Vec<StoreResult>, anyhow::Error> {
         let db: &DatabaseConnection = establish_connection().await;
 
         let cur_utc_date: NaiveDateTime = get_current_utc_naive_datetime();
 
         let query_filter: Condition = Condition::any()
-            .add(Expr::col(store::Column::RegDt).gt(recent_datetime))
-            .add(Expr::col(store::Column::ChgDt).gt(recent_datetime))
-            .add(Expr::col(zero_possible_market::Column::RegDt).gt(recent_datetime))
-            .add(Expr::col(zero_possible_market::Column::RegDt).gt(recent_datetime))
-            .add(Expr::col(store_recommend_tbl::Column::RegDt).gt(recent_datetime))
-            .add(Expr::col(store_recommend_tbl::Column::RegDt).gt(recent_datetime))
-            .add(Expr::col(recommend_tbl::Column::RegDt).gt(recent_datetime))
-            .add(Expr::col(recommend_tbl::Column::RegDt).gt(recent_datetime));
-
+            .add(Expr::col((store::Entity, store::Column::RegDt)).gt(recent_datetime))
+            .add(Expr::col((store::Entity, store::Column::ChgDt)).gt(recent_datetime))
+            .add(Expr::col((zero_possible_market::Entity, zero_possible_market::Column::RegDt)).gt(recent_datetime))
+            .add(Expr::col((zero_possible_market::Entity, zero_possible_market::Column::ChgDt)).gt(recent_datetime))
+            .add(Expr::col((store_recommend_tbl::Entity, store_recommend_tbl::Column::RegDt)).gt(recent_datetime))
+            .add(Expr::col((store_recommend_tbl::Entity, store_recommend_tbl::Column::ChgDt)).gt(recent_datetime))
+            .add(Expr::col((recommend_tbl::Entity, recommend_tbl::Column::RegDt)).gt(recent_datetime))
+            .add(Expr::col((recommend_tbl::Entity, recommend_tbl::Column::ChgDt)).gt(recent_datetime));
+        
         let query: Select<store::Entity> = store::Entity::find()
             .left_join(zero_possible_market::Entity)
             .left_join(store_recommend_tbl::Entity)
@@ -199,8 +199,8 @@ impl QueryService for QueryServicePub {
             .column_as(recommend_tbl::Column::RecommendName, "recommend_name")
             .filter(query_filter);
 
-        let mut store_results: Vec<StoreResult> = query.into_model().all(db).await?;
+        let store_results: Vec<StoreResult> = query.into_model().all(db).await?;
 
-        Ok(())
+        Ok(store_results)
     }
 }

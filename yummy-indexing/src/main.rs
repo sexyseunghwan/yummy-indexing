@@ -54,29 +54,34 @@ async fn main() {
             }
         };
 
-    //controller_arc.main_task().await.unwrap();
+    /* test 코드 */
+    let index_schdule = index_schdules.index().get(0).unwrap();
+    controller_arc
+        .main_task(index_schdule.clone())
+        .await
+        .unwrap();
 
     /*
         각 인덱스 별로 모니터링을 비동기적으로 실시해준다.
         스케쥴링 대기 작업 진행
     */
-    for index in index_schdules.index {
-        let index_clone: IndexSchedules = index.clone();
+    // for index in index_schdules.index {
+    //     let index_clone: IndexSchedules = index.clone();
 
-        let controller_arc_clone: Arc<MainController<QueryServicePub, EsQueryServicePub>> =
-            Arc::clone(&controller_arc);
+    //     let controller_arc_clone: Arc<MainController<QueryServicePub, EsQueryServicePub>> =
+    //         Arc::clone(&controller_arc);
 
-        tokio::spawn(async move {
-            if let Err(e) = controller_arc_clone.main_schedule_task(index_clone).await {
-                error!("[Error][main_schedule_task] {:?}", e);
-            }
-        });
-    }
+    //     tokio::spawn(async move {
+    //         if let Err(e) = controller_arc_clone.main_schedule_task(index_clone).await {
+    //             error!("[Error][main_schedule_task] {:?}", e);
+    //         }
+    //     });
+    // }
 
-    /* 모두 서브테스크로 실행되므로 아래와 같이 메인 태스크를 계속 유지시켜줘야 한다. */
-    tokio::select! {
-        _ = signal::ctrl_c() => {
-            info!("Received Ctrl+C, shutting down...");
-        }
-    }
+    // /* 모두 서브테스크로 실행되므로 아래와 같이 메인 태스크를 계속 유지시켜줘야 한다. */
+    // tokio::select! {
+    //     _ = signal::ctrl_c() => {
+    //         info!("Received Ctrl+C, shutting down...");
+    //     }
+    // }
 }

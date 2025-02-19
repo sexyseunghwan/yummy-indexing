@@ -75,7 +75,7 @@ impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
     ///
     /// # Returns
     /// * Result<(), anyhow::Error>
-    async fn main_task(&self, index_schedule: IndexSchedules) -> Result<(), anyhow::Error> {
+    pub async fn main_task(&self, index_schedule: IndexSchedules) -> Result<(), anyhow::Error> {
         let function_name: &str = index_schedule.function_name().as_str();
 
         match function_name {
@@ -187,12 +187,23 @@ impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
         &self,
         index_schedule: IndexSchedules,
     ) -> Result<(), anyhow::Error> {
-        let index_alias_name: &String = index_schedule.index_name();
+        let index_name: &String = index_schedule.index_name();
 
         /* 일단, 검색엔진에 색인된 정보중에 가장 최근의 timestamp 정보를 가져와 준다. */
+        let recent_index_datetime: NaiveDateTime = self
+            .es_query_service
+            .get_recent_index_datetime(index_name, "timestamp")
+            .await?;
 
         /* 해당 timestamp 정보를 기준으로 더 최근 데이터를 DB 에서 가져와준다. */
-
+        let recent_store_data: Vec<StoreResult> = self.query_service
+            .get_updated_store_table(recent_index_datetime)
+            .await?;
+        
+        for elem in recent_store_data {
+            println!("{:?}", elem);
+        }
+        
         Ok(())
     }
 
