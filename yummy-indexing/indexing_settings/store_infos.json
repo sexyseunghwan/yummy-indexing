@@ -46,6 +46,7 @@
   },
   "mappings" : {
     "properties" : {
+      "timestamp": { "type": "date" },
       "seq": { "type": "integer" },
       "name": { "type": "text", "fields": { "keyword": { "type": "keyword" } } },
       "type": { "type": "keyword", "null_value": "NULL" },

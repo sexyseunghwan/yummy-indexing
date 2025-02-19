@@ -7,7 +7,11 @@ use crate::configuration::{index_schedules_config::*, system_config::*};
 
 use crate::models::store_to_elastic::*;
 
-use crate::entity::store;
+use crate::entity::{
+    recommend_tbl, store, store_location_info_tbl, store_recommend_tbl, zero_possible_market,
+};
+
+use crate::utils_module::time_utils::*;
 
 // use crate::configuration::elasitc_index_name::*;
 
@@ -195,15 +199,31 @@ impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
             .get_recent_index_datetime(index_name, "timestamp")
             .await?;
 
-        /* 해당 timestamp 정보를 기준으로 더 최근 데이터를 DB 에서 가져와준다. */
-        let recent_store_data: Vec<StoreResult> = self.query_service
-            .get_updated_store_table(recent_index_datetime)
-            .await?;
-        
-        for elem in recent_store_data {
-            println!("{:?}", elem);
-        }
-        
+        /* 증분색인은 Create -> Update -> Delete 세단계로 나눠준다. */
+        let cur_utc_date: NaiveDateTime = get_current_utc_naive_datetime(); /* 현재기준 UTC 시간 */
+
+        /* 1. Create */
+
+        /* 2. Update */
+
+        /* 3. Delete */
+
+        // /* 일단, 검색엔진에 색인된 정보중에 가장 최근의 timestamp 정보를 가져와 준다. */
+        // let recent_index_datetime: NaiveDateTime = self
+        //     .es_query_service
+        //     .get_recent_index_datetime(index_name, "timestamp")
+        //     .await?;
+
+        // /* 해당 timestamp 정보를 기준으로 더 최근 데이터를 DB 에서 가져와준다. */
+        // let recent_store_data: Vec<StoreResult> = self
+        //     .query_service
+        //     .get_updated_store_table(recent_index_datetime)
+        //     .await?;
+
+        // for elem in recent_store_data {
+        //     println!("{:?}", elem);
+        // }
+
         Ok(())
     }
 

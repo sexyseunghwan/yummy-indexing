@@ -4,6 +4,8 @@ pub use super::migrations::Entity as Migrations;
 pub use super::recommend_tbl::Entity as RecommendTbl;
 pub use super::store::Entity as Store;
 pub use super::store_backup::Entity as StoreBackup;
+pub use super::store_location_info_tbl::Entity as StoreLocationInfoTbl;
+pub use super::store_old::Entity as StoreOld;
 pub use super::store_recommend_tbl::Entity as StoreRecommendTbl;
 pub use super::zero_possible_market::Entity as ZeroPossibleMarket;
 pub use super::zero_possible_market_backup::Entity as ZeroPossibleMarketBackup;

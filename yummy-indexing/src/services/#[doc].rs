@@ -323,56 +323,12 @@ impl QueryService for QueryServicePub {
         Ok(result)
     }
 
-
-    #[doc = "동적색인 - Update 단계 함수"]
-    /// # Arguments
-    /// * `recent_datetime` - 가장 최신 날짜데이터
-    /// * `cur_utc_date` - 현재 날짜 데이터
-    ///
-    /// # Returns
-    /// * Result<Vec<StoreResult>, anyhow::Error>
+    
     async fn get_dynamic_update_index(
         &self,
         recent_datetime: NaiveDateTime,
         cur_utc_date: NaiveDateTime,
     ) -> Result<Vec<StoreResult>, anyhow::Error> {
-        
-        let update_filter: Condition = Condition::all()
-            .add(Expr::col((store::Entity, store::Column::UseYn)).eq("Y"))
-            .add(
-                Condition::any()
-                    .add(Expr::col((store::Entity, store::Column::ChgDt)).gt(recent_datetime))
-                    .add(
-                        Expr::col((
-                            zero_possible_market::Entity,
-                            zero_possible_market::Column::ChgDt,
-                        ))
-                        .gt(recent_datetime),
-                    )
-                    .add(
-                        Expr::col((
-                            store_recommend_tbl::Entity,
-                            store_recommend_tbl::Column::ChgDt,
-                        ))
-                        .gt(recent_datetime),
-                    )
-                    .add(
-                        Expr::col((recommend_tbl::Entity, recommend_tbl::Column::ChgDt))
-                            .gt(recent_datetime),
-                    )
-                    .add(
-                        Expr::col((
-                            store_location_info_tbl::Entity,
-                            store_location_info_tbl::Column::ChgDt,
-                        ))
-                        .gt(recent_datetime),
-                    )
-            );
 
-        let result: Vec<StoreResult> = self
-            .get_changed_store_table(recent_datetime, cur_utc_date, update_filter)
-            .await?;
-
-        Ok(result)
     }
 }

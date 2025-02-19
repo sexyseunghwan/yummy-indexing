@@ -3,25 +3,22 @@
 use sea_orm::entity::prelude::*;
 
 use crate::entity::store;
+use crate::entity::store_location_info_tbl;
 use crate::entity::store_recommend_tbl;
 use crate::entity::zero_possible_market;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]
 #[sea_orm(table_name = "store")]
 pub struct Model {
-    pub name: String,
-    pub r#type: Option<String>,
-    pub address: Option<String>,
-    #[sea_orm(column_type = "Decimal(Some((10, 7)))")]
-    pub lat: Decimal,
-    #[sea_orm(column_type = "Decimal(Some((10, 7)))")]
-    pub lng: Decimal,
-    pub reg_dt: Option<DateTime>,
-    pub reg_id: Option<String>,
-    pub chg_dt: Option<DateTime>,
-    pub chg_id: Option<String>,
     #[sea_orm(primary_key)]
     pub seq: i32,
+    pub name: String,
+    pub r#type: Option<String>,
+    pub use_yn: Option<String>,
+    pub reg_dt: DateTime,
+    pub chg_dt: Option<DateTime>,
+    pub reg_id: String,
+    pub chg_id: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -30,6 +27,8 @@ pub enum Relation {
     ZeroPossibleMarket,
     #[sea_orm(has_many = "super::store_recommend_tbl::Entity")]
     StoreRecommendTbl,
+    #[sea_orm(has_one = "super::store_location_info_tbl::Entity")]
+    StoreLocationInfoTbl,
 }
 
 impl Related<zero_possible_market::Entity> for store::Entity {
@@ -41,6 +40,12 @@ impl Related<zero_possible_market::Entity> for store::Entity {
 impl Related<store_recommend_tbl::Entity> for store::Entity {
     fn to() -> RelationDef {
         Relation::StoreRecommendTbl.def()
+    }
+}
+
+impl Related<store_location_info_tbl::Entity> for store::Entity {
+    fn to() -> RelationDef {
+        Relation::StoreLocationInfoTbl.def()
     }
 }
 

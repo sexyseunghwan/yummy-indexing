@@ -2,22 +2,26 @@
 
 use sea_orm::entity::prelude::*;
 
-use crate::entity::recommend_tbl;
 use crate::entity::store;
-use crate::entity::store_recommend_tbl;
+use crate::entity::store_location_info_tbl;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]
-#[sea_orm(table_name = "store_recommend_tbl")]
+#[sea_orm(table_name = "store_location_info_tbl")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
-    pub recommend_seq: i32,
-    #[sea_orm(primary_key, auto_increment = false)]
     pub seq: i32,
-    pub recommend_end_dt: DateTime,
+    pub address: Option<String>,
+    #[sea_orm(column_type = "Decimal(Some((10, 7)))")]
+    pub lat: Decimal,
+    #[sea_orm(column_type = "Decimal(Some((10, 7)))")]
+    pub lng: Decimal,
     pub reg_dt: DateTime,
     pub chg_dt: Option<DateTime>,
     pub reg_id: String,
     pub chg_id: Option<String>,
+    pub location_city: Option<String>,
+    pub location_county: Option<String>,
+    pub location_district: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -28,23 +32,11 @@ pub enum Relation {
         to = "super::store::Column::Seq"
     )]
     Store,
-    #[sea_orm(
-        belongs_to = "super::recommend_tbl::Entity",
-        from = "Column::RecommendSeq",
-        to = "super::recommend_tbl::Column::RecommendSeq"
-    )]
-    RecommendTbl,
 }
 
-impl Related<store::Entity> for store_recommend_tbl::Entity {
+impl Related<store::Entity> for store_location_info_tbl::Entity {
     fn to() -> RelationDef {
         Relation::Store.def()
-    }
-}
-
-impl Related<recommend_tbl::Entity> for store_recommend_tbl::Entity {
-    fn to() -> RelationDef {
-        Relation::RecommendTbl.def()
     }
 }
 
