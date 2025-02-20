@@ -60,7 +60,7 @@ async fn main() {
     //     .main_task(index_schdule.clone())
     //     .await
     //     .unwrap();
-        
+
     /*
         각 인덱스 별로 모니터링을 비동기적으로 실시해준다.
         스케쥴링 대기 작업 진행

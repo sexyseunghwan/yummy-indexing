@@ -9,7 +9,8 @@ use crate::repository::mysql_repository::*;
 use crate::utils_module::time_utils::*;
 
 use crate::entity::{
-    recommend_tbl, store, store_location_info_tbl, store_recommend_tbl, zero_possible_market,
+    elastic_index_info_tbl, recommend_tbl, store, store_location_info_tbl, store_recommend_tbl,
+    zero_possible_market,
 };
 
 pub trait QueryService {
@@ -20,7 +21,7 @@ pub trait QueryService {
     fn get_distinct_store_table(
         &self,
         stores: &Vec<StoreResult>,
-        cur_utc_date: NaiveDateTime
+        cur_utc_date: NaiveDateTime,
     ) -> Result<Vec<DistinctStoreResult>, anyhow::Error>;
     async fn get_changed_store_table(
         &self,
@@ -30,18 +31,27 @@ pub trait QueryService {
     async fn get_dynamic_create_store_index(
         &self,
         recent_datetime: NaiveDateTime,
-        cur_utc_date: NaiveDateTime
+        cur_utc_date: NaiveDateTime,
     ) -> Result<Vec<DistinctStoreResult>, anyhow::Error>;
     async fn get_dynamic_update_store_index(
         &self,
         recent_datetime: NaiveDateTime,
-        cur_utc_date: NaiveDateTime
+        cur_utc_date: NaiveDateTime,
     ) -> Result<Vec<DistinctStoreResult>, anyhow::Error>;
     async fn get_dynamic_delete_store_index(
         &self,
         recent_datetime: NaiveDateTime,
-        cur_utc_date: NaiveDateTime
+        cur_utc_date: NaiveDateTime,
     ) -> Result<Vec<DistinctStoreResult>, anyhow::Error>;
+    async fn get_recent_date_from_elastic_index_info(
+        &self,
+        index_schedule: &IndexSchedules,
+    ) -> Result<NaiveDateTime, anyhow::Error>;
+    async fn update_recent_date_to_elastic_index_info(
+        &self,
+        index_schedule: &IndexSchedules,
+        new_datetime: NaiveDateTime,
+    ) -> Result<(), anyhow::Error>;
 }
 
 #[derive(Debug, new)]
@@ -100,27 +110,6 @@ impl QueryService for QueryServicePub {
                     .is_not_null(),
                     "zero_possible",
                 )
-                // .expr_as(
-                //     Expr::col((
-                //         store_location_info_tbl::Entity,
-                //         store_location_info_tbl::Column::Address
-                //     )),
-                //     "address"
-                // )
-                // .expr_as(
-                //     Expr::col((
-                //         store_location_info_tbl::Entity,
-                //         store_location_info_tbl::Column::Lat
-                //     )),
-                //     "lat"
-                // )
-                // .expr_as(
-                //     Expr::col((
-                //         store_location_info_tbl::Entity,
-                //         store_location_info_tbl::Column::Lng
-                //     )),
-                //     "lng"
-                // )
                 .column_as(store_location_info_tbl::Column::Address, "address")
                 .column_as(store_location_info_tbl::Column::Lat, "lat")
                 .column_as(store_location_info_tbl::Column::Lng, "lng")
@@ -154,7 +143,7 @@ impl QueryService for QueryServicePub {
     fn get_distinct_store_table(
         &self,
         stores: &Vec<StoreResult>,
-        cur_utc_date: NaiveDateTime
+        cur_utc_date: NaiveDateTime,
     ) -> Result<Vec<DistinctStoreResult>, anyhow::Error> {
         let mut store_map: HashMap<i32, DistinctStoreResult> = HashMap::new();
         let cur_time_utc: String = get_str_curdatetime_utc();
@@ -249,7 +238,7 @@ impl QueryService for QueryServicePub {
     async fn get_dynamic_create_store_index(
         &self,
         recent_datetime: NaiveDateTime,
-        cur_utc_date: NaiveDateTime
+        cur_utc_date: NaiveDateTime,
     ) -> Result<Vec<DistinctStoreResult>, anyhow::Error> {
         let create_filter: Condition = Condition::all()
             .add(Expr::col((store::Entity, store::Column::UseYn)).eq("Y"))
@@ -287,7 +276,8 @@ impl QueryService for QueryServicePub {
             .get_changed_store_table(recent_datetime, create_filter)
             .await?;
 
-        let distinct_result: Vec<DistinctStoreResult> = self.get_distinct_store_table(&stores, cur_utc_date)?;
+        let distinct_result: Vec<DistinctStoreResult> =
+            self.get_distinct_store_table(&stores, cur_utc_date)?;
 
         Ok(distinct_result)
     }
@@ -302,7 +292,7 @@ impl QueryService for QueryServicePub {
     async fn get_dynamic_update_store_index(
         &self,
         recent_datetime: NaiveDateTime,
-        cur_utc_date: NaiveDateTime
+        cur_utc_date: NaiveDateTime,
     ) -> Result<Vec<DistinctStoreResult>, anyhow::Error> {
         let update_filter: Condition = Condition::all()
             .add(Expr::col((store::Entity, store::Column::UseYn)).eq("Y"))
@@ -340,7 +330,8 @@ impl QueryService for QueryServicePub {
             .get_changed_store_table(recent_datetime, update_filter)
             .await?;
 
-        let distinct_result: Vec<DistinctStoreResult> = self.get_distinct_store_table(&stores, cur_utc_date)?;
+        let distinct_result: Vec<DistinctStoreResult> =
+            self.get_distinct_store_table(&stores, cur_utc_date)?;
 
         Ok(distinct_result)
     }
@@ -355,7 +346,7 @@ impl QueryService for QueryServicePub {
     async fn get_dynamic_delete_store_index(
         &self,
         recent_datetime: NaiveDateTime,
-        cur_utc_date: NaiveDateTime
+        cur_utc_date: NaiveDateTime,
     ) -> Result<Vec<DistinctStoreResult>, anyhow::Error> {
         let delete_filter: Condition = Condition::all()
             .add(Expr::col((store::Entity, store::Column::UseYn)).eq("N"))
@@ -393,8 +384,83 @@ impl QueryService for QueryServicePub {
             .get_changed_store_table(recent_datetime, delete_filter)
             .await?;
 
-        let distinct_result: Vec<DistinctStoreResult> = self.get_distinct_store_table(&stores, cur_utc_date)?;
+        let distinct_result: Vec<DistinctStoreResult> =
+            self.get_distinct_store_table(&stores, cur_utc_date)?;
 
         Ok(distinct_result)
+    }
+
+    #[doc = "특정 인덱스에서 가장 최근에 색인된 날짜/시간 정보를 가져와주는 함수"]
+    /// # Arguments
+    /// * `index_schedule` - 인덱스 스케쥴 정보
+    ///
+    /// # Returns
+    /// * Result<NaiveDateTime, anyhow::Error>
+    async fn get_recent_date_from_elastic_index_info(
+        &self,
+        index_schedule: &IndexSchedules,
+    ) -> Result<NaiveDateTime, anyhow::Error> {
+        let index_name: &String = index_schedule.index_name();
+
+        let db: &DatabaseConnection = establish_connection().await;
+
+        // let filter: Condition = Condition::all().add(
+        //     Expr::col((
+        //         elastic_index_info_tbl::Entity,
+        //         elastic_index_info_tbl::Column::IndexName,
+        //     ))
+        //     .eq(index_name),
+        // );
+
+        // let filter: Condition = Condition::all().add(
+        //     elastic_index_info_tbl::Column::IndexName.eq(index_name),
+        // );
+
+        let query: Select<elastic_index_info_tbl::Entity> = elastic_index_info_tbl::Entity::find()
+            .filter(elastic_index_info_tbl::Column::IndexName.eq(index_name));
+
+        let query_results: Vec<elastic_index_info_tbl::Model> = query.all(db).await?;
+
+        if query_results.is_empty() {
+            return Err(anyhow!(
+                "[Error][get_recent_date_from_elastic_index_info()] query_results is EMPTY"
+            ));
+        }
+        
+        let recent_datetime: NaiveDateTime = 
+            query_results
+                .get(0)
+                .ok_or_else(|| anyhow!("[Error][get_recent_date_from_elastic_index_info()] The first element of 'query_results' does not exist."))?
+                .chg_dt;
+
+        Ok(recent_datetime)
+    }
+
+    #[doc = "elastic_index_info 테이블의 chg_dt 데이터를 update 해주는 함수 - 색인시간 최신화"]
+    /// # Arguments
+    /// * `index_schedule` - 인덱스 스케쥴 정보
+    /// * `new_datetime` - 새로운 날짜/시간 데이터
+    ///
+    /// # Returns
+    /// * Result<NaiveDateTime, anyhow::Error>
+    async fn update_recent_date_to_elastic_index_info(
+        &self,
+        index_schedule: &IndexSchedules,
+        new_datetime: NaiveDateTime,
+    ) -> Result<(), anyhow::Error> {
+        let index_name: &String = index_schedule.index_name();
+
+        let db: &DatabaseConnection = establish_connection().await;
+
+        elastic_index_info_tbl::Entity::update_many()
+            .col_expr(
+                elastic_index_info_tbl::Column::ChgDt,
+                Expr::value(new_datetime),
+            )
+            .filter(elastic_index_info_tbl::Column::IndexName.eq(index_name))
+            .exec(db)
+            .await?;
+
+        Ok(())
     }
 }

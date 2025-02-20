@@ -1,6 +1,5 @@
 pub use std::{
-    cmp::Ordering,
-    collections::{BinaryHeap, HashMap, VecDeque},
+    collections::{HashMap, VecDeque},
     env,
     fmt::Debug,
     fs::File,
@@ -17,11 +16,9 @@ pub use tokio::{
     io::AsyncReadExt,
     signal,
     sync::{Mutex, MutexGuard, OnceCell},
-    task,
-    time::{sleep, Duration, Interval},
+    time::{Duration, Interval},
 };
 
-pub use bigdecimal::BigDecimal;
 
 pub use log::{error, info, warn};
 
@@ -60,7 +57,7 @@ pub use elasticsearch::{
 pub use anyhow::{anyhow, Result};
 
 pub use derive_new::new;
-pub use getset::{Getters, Setters};
+pub use getset::Getters;
 
 pub use num_format::{Locale, ToFormattedString};
 
@@ -79,9 +76,7 @@ pub use kafka::producer::{Producer, Record as KafkaRecord, RequiredAcks};
 
 pub use sea_orm::{
     prelude::{Decimal, Expr},
-    sea_query::{Alias, IntoTableRef, TableRef},
-    ActiveModelBehavior, ColumnTrait, Condition, Database, DatabaseConnection, DeriveEntityModel,
-    EntityName, EntityTrait, EnumIter, FromQueryResult, JoinType, PaginatorTrait, QueryFilter,
+    ActiveModelBehavior, ColumnTrait, Condition, Database, DatabaseConnection, EntityTrait, FromQueryResult, JoinType, QueryFilter,
     QueryOrder, QuerySelect, RelationTrait, Select,
 };
 
@@ -104,4 +99,3 @@ pub use regex::Regex;
 
 pub use once_cell::sync::Lazy as once_lazy;
 
-pub use strsim::levenshtein;

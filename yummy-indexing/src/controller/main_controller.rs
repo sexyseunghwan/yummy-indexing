@@ -7,9 +7,6 @@ use crate::configuration::{index_schedules_config::*, system_config::*};
 
 use crate::models::store_to_elastic::*;
 
-use crate::entity::{
-    recommend_tbl, store, store_location_info_tbl, store_recommend_tbl, zero_possible_market,
-};
 
 use crate::utils_module::time_utils::*;
 
@@ -106,19 +103,19 @@ impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
         &self,
         index_schedule: IndexSchedules,
     ) -> Result<(), anyhow::Error> {
-        
         /* 현재기준 UTC 시간 */
-        let cur_utc_date: NaiveDateTime = get_current_utc_naive_datetime(); 
+        let cur_utc_date: NaiveDateTime = get_current_utc_naive_datetime();
 
         /* 중복이 존재하는 store 리스트 */
         let stores: Vec<StoreResult> = self
             .query_service
             .get_all_store_table(&index_schedule)
             .await?;
-        
+
         /* 중복을 제외한 store 리스트 */
-        let stores_distinct: Vec<DistinctStoreResult> =
-            self.query_service.get_distinct_store_table(&stores, cur_utc_date)?;
+        let stores_distinct: Vec<DistinctStoreResult> = self
+            .query_service
+            .get_distinct_store_table(&stores, cur_utc_date)?;
 
         self.es_query_service
             .post_indexing_data_by_bulk_static::<DistinctStoreResult>(
@@ -126,9 +123,14 @@ impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
                 &stores_distinct,
             )
             .await?;
-        
+
+        /* 색인시간 최신화 */
+        self.query_service
+            .update_recent_date_to_elastic_index_info(&index_schedule, cur_utc_date)
+            .await?;
+
         info!("Store - Static Create Indexing: {}", stores_distinct.len());
-        
+
         Ok(())
     }
 
@@ -142,13 +144,18 @@ impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
         &self,
         index_schedule: IndexSchedules,
     ) -> Result<(), anyhow::Error> {
-
         let cur_utc_date: NaiveDateTime = get_current_utc_naive_datetime(); /* 현재기준 UTC 시간 */
 
-        /* 일단, 검색엔진에 색인된 정보중에 가장 최근의 timestamp 정보를 가져와 준다. */
+        /* 일단, 검색엔진에 색인된 정보중에 가장 최근의 timestamp 정보를 가져와 준다. -> 필요없을듯 */
+        // let recent_index_datetime: NaiveDateTime = self
+        //     .es_query_service
+        //     .get_recent_index_datetime(&index_schedule, "timestamp")
+        //     .await?;
+
+        /* RDB 에서 검색엔진에 가장 마지막으로 색인한 날짜를 가져와준다. */
         let recent_index_datetime: NaiveDateTime = self
-            .es_query_service
-            .get_recent_index_datetime(&index_schedule, "timestamp")
+            .query_service
+            .get_recent_date_from_elastic_index_info(&index_schedule)
             .await?;
 
         /* 증분색인은 Create -> Update -> Delete 세단계로 나눠준다. */
@@ -158,28 +165,35 @@ impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
             .get_dynamic_create_store_index(recent_index_datetime, cur_utc_date)
             .await?;
 
-
         if !create_list.is_empty() {
             self.es_query_service
-                .post_indexing_data_by_bulk_dynamic::<DistinctStoreResult>(&index_schedule, &create_list)
+                .post_indexing_data_by_bulk_dynamic::<DistinctStoreResult>(
+                    &index_schedule,
+                    &create_list,
+                )
                 .await
-                .map_err(|e| anyhow!("[Error][store_dynamic_index()] Dynamic Index Failed (Create) : {:?}", e))?;
+                .map_err(|e| {
+                    anyhow!(
+                        "[Error][store_dynamic_index()] Dynamic Index Failed (Create) : {:?}",
+                        e
+                    )
+                })?;
         }
-        
+
         info!("Dynamic Create Indexing: {}", create_list.len());
-        
+
         /* 2. Update */
         let update_list: Vec<DistinctStoreResult> = self
             .query_service
             .get_dynamic_update_store_index(recent_index_datetime, cur_utc_date)
             .await?;
-        
+
         if !update_list.is_empty() {
             self.es_query_service
                 .update_index(&index_schedule, &update_list, "seq")
                 .await?;
         }
-        
+
         info!("Dynamic Update Indexing: {}", update_list.len());
 
         /* 3. Delete */
@@ -187,15 +201,22 @@ impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
             .query_service
             .get_dynamic_delete_store_index(recent_index_datetime, cur_utc_date)
             .await?;
-        
+
         if !delete_list.is_empty() {
             self.es_query_service
                 .delete_index(&index_schedule, &delete_list, "seq")
                 .await?;
         }
-        
+
         info!("Dynamic Delete Indexing: {}", delete_list.len());
-        
+
+        if !create_list.is_empty() || !update_list.is_empty() || !delete_list.is_empty() {
+            /* 색인시간 최신화 */
+            self.query_service
+                .update_recent_date_to_elastic_index_info(&index_schedule, cur_utc_date)
+                .await?;
+        }
+
         Ok(())
     }
 }

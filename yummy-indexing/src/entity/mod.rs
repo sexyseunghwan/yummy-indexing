@@ -2,6 +2,7 @@
 
 pub mod prelude;
 
+pub mod elastic_index_info_tbl;
 pub mod migrations;
 pub mod recommend_tbl;
 pub mod store;
@@ -9,5 +10,6 @@ pub mod store_backup;
 pub mod store_location_info_tbl;
 pub mod store_old;
 pub mod store_recommend_tbl;
+pub mod users;
 pub mod zero_possible_market;
 pub mod zero_possible_market_backup;

@@ -38,7 +38,7 @@ pub trait EsQueryService {
         &self,
         index_schedule: &IndexSchedules,
         data: &Vec<T>,
-        unique_field_name: &str
+        unique_field_name: &str,
     ) -> Result<(), anyhow::Error>;
 
     async fn get_test(&self) -> Result<(), anyhow::Error>;
@@ -151,7 +151,7 @@ impl EsQueryService for EsQueryServicePub {
         es_conn
             .bulk_indexing_query(&index_alias_name, data, es_batch_size)
             .await?;
-        
+
         Ok(())
     }
 
@@ -218,19 +218,18 @@ impl EsQueryService for EsQueryServicePub {
                 .as_i64()
                 .ok_or_else(|| anyhow!("[Error][update_index()] There was a problem converting data for 'unique_value'"))?
                 .try_into()?;
-            
+
             /* 기존 문서 삭제 */
             es_conn
                 .delete_query_where_field(index_name, unique_field_name, unique_value)
                 .await?;
-            
+
             /* 새로운 문서 색인 */
             es_conn.post_query_struct::<T>(item, index_name).await?;
         }
-        
-        Ok(())
-    }   
 
+        Ok(())
+    }
 
     #[doc = "기존의 Elasticsearch 문서들을 삭제 해주는 함수"]
     /// # Arguments
@@ -244,9 +243,8 @@ impl EsQueryService for EsQueryServicePub {
         &self,
         index_schedule: &IndexSchedules,
         data: &Vec<T>,
-        unique_field_name: &str
+        unique_field_name: &str,
     ) -> Result<(), anyhow::Error> {
-
         let index_name: &String = index_schedule.index_name();
 
         let es_conn: ElasticConnGuard = get_elastic_guard_conn().await?;
@@ -258,24 +256,20 @@ impl EsQueryService for EsQueryServicePub {
                 .as_i64()
                 .ok_or_else(|| anyhow!("[Error][delete_index()] There was a problem converting data for 'unique_value'"))?
                 .try_into()?;
-             
-             /* 기존 문서 삭제 */
-             es_conn
+
+            /* 기존 문서 삭제 */
+            es_conn
                 .delete_query_where_field(index_name, unique_field_name, unique_value)
                 .await?;
         }
-        
 
         Ok(())
     }
-
 
     async fn get_test(&self) -> Result<(), anyhow::Error> {
         let es_conn: ElasticConnGuard = get_elastic_guard_conn().await?;
 
         let test = es_conn.check_index_exist("kakrftel").await?;
-
-        println!("{:?}", test);
 
         Ok(())
     }

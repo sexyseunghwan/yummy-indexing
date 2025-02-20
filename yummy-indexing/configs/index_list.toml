@@ -6,9 +6,10 @@ function_name = "store_dynamic_index"
 sql_batch_size = 100
 es_batch_size = 100
 
+
 [[index]]
 index_name = "yummy-index"
-time = "0 15 21 * * * *"
+time = "0 5 22 * * * *"
 indexing_type = "static"
 setting_path = "./indexing_settings/store_infos.json"
 function_name = "store_static_index"
