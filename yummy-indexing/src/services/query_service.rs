@@ -1,5 +1,7 @@
 use crate::common::*;
 
+use crate::configuration::index_schedules_config::*;
+
 use crate::models::store_to_elastic::*;
 
 use crate::repository::mysql_repository::*;
@@ -13,7 +15,7 @@ use crate::entity::{
 pub trait QueryService {
     async fn get_all_store_table(
         &self,
-        batch_size: usize,
+        index_schedule: &IndexSchedules
     ) -> Result<Vec<StoreResult>, anyhow::Error>;
     fn get_distinct_store_table(
         &self,
@@ -22,24 +24,20 @@ pub trait QueryService {
     async fn get_changed_store_table(
         &self,
         recent_datetime: NaiveDateTime,
-        cur_utc_date: NaiveDateTime,
         query_filter: Condition,
     ) -> Result<Vec<StoreResult>, anyhow::Error>;
-    async fn get_dynamic_create_index(
+    async fn get_dynamic_create_store_index(
         &self,
         recent_datetime: NaiveDateTime,
-        cur_utc_date: NaiveDateTime,
-    ) -> Result<Vec<StoreResult>, anyhow::Error>;
-    async fn get_dynamic_update_index(
+    ) -> Result<Vec<DistinctStoreResult>, anyhow::Error>;
+    async fn get_dynamic_update_store_index(
         &self,
         recent_datetime: NaiveDateTime,
-        cur_utc_date: NaiveDateTime,
-    ) -> Result<Vec<StoreResult>, anyhow::Error>;
-    async fn get_dynamic_delete_index(
+    ) -> Result<Vec<DistinctStoreResult>, anyhow::Error>;
+    async fn get_dynamic_delete_store_index(
         &self,
         recent_datetime: NaiveDateTime,
-        cur_utc_date: NaiveDateTime,
-    ) -> Result<Vec<StoreResult>, anyhow::Error>;
+    ) -> Result<Vec<DistinctStoreResult>, anyhow::Error>;
 }
 
 #[derive(Debug, new)]
@@ -48,14 +46,17 @@ pub struct QueryServicePub;
 impl QueryService for QueryServicePub {
     #[doc = "색인할 Store 정보를 조회해주는 함수 -> batch"]
     /// # Arguments
-    /// * `batch_size` - 한번에 DB 에서 가져올 데이터 개수
+    /// * `index_schedule` - index_schedule 정보
     ///
     /// # Returns
     /// * Result<Vec<StoreResult>, anyhow::Error>
     async fn get_all_store_table(
         &self,
-        batch_size: usize,
+        index_schedule: &IndexSchedules
     ) -> Result<Vec<StoreResult>, anyhow::Error> {
+        
+        let batch_size: usize = *index_schedule.es_batch_size();
+
         let db: &DatabaseConnection = establish_connection().await;
 
         let mut total_store_list: Vec<StoreResult> = Vec::new();
@@ -122,10 +123,6 @@ impl QueryService for QueryServicePub {
                 .column_as(store_location_info_tbl::Column::Lng, "lng")
                 .column_as(recommend_tbl::Column::RecommendName, "recommend_name")
                 .filter(query_filter.clone());
-
-            // store_location_info_tbl::Column::Address,
-            // store_location_info_tbl::Column::Lat,
-            // store_location_info_tbl::Column::Lng
 
             if let Some(seq) = last_seq {
                 query = query.filter(store::Column::Seq.gt(seq)); /* `seq`가 마지막 값보다 큰 데이터 가져오기 */
@@ -194,51 +191,10 @@ impl QueryService for QueryServicePub {
     /// * Result<Vec<StoreResult>, anyhow::Error>
     async fn get_changed_store_table(
         &self,
-        recent_datetime: NaiveDateTime,
         cur_utc_date: NaiveDateTime,
         query_filter: Condition,
     ) -> Result<Vec<StoreResult>, anyhow::Error> {
         let db: &DatabaseConnection = establish_connection().await;
-
-        // let query_filter: Condition = Condition::any()
-        //     .add(Expr::col((store::Entity, store::Column::RegDt)).gt(recent_datetime))
-        //     .add(Expr::col((store::Entity, store::Column::ChgDt)).gt(recent_datetime))
-        //     .add(
-        //         Expr::col((
-        //             zero_possible_market::Entity,
-        //             zero_possible_market::Column::RegDt,
-        //         ))
-        //         .gt(recent_datetime),
-        //     )
-        //     .add(
-        //         Expr::col((
-        //             zero_possible_market::Entity,
-        //             zero_possible_market::Column::ChgDt,
-        //         ))
-        //         .gt(recent_datetime),
-        //     )
-        //     .add(
-        //         Expr::col((
-        //             store_recommend_tbl::Entity,
-        //             store_recommend_tbl::Column::RegDt,
-        //         ))
-        //         .gt(recent_datetime),
-        //     )
-        //     .add(
-        //         Expr::col((
-        //             store_recommend_tbl::Entity,
-        //             store_recommend_tbl::Column::ChgDt,
-        //         ))
-        //         .gt(recent_datetime),
-        //     )
-        //     .add(
-        //         Expr::col((recommend_tbl::Entity, recommend_tbl::Column::RegDt))
-        //             .gt(recent_datetime),
-        //     )
-        //     .add(
-        //         Expr::col((recommend_tbl::Entity, recommend_tbl::Column::ChgDt))
-        //             .gt(recent_datetime),
-        //     );
 
         let query: Select<store::Entity> = store::Entity::find()
             .left_join(zero_possible_market::Entity)
@@ -276,19 +232,17 @@ impl QueryService for QueryServicePub {
 
         Ok(store_results)
     }
-    
+
     #[doc = "동적색인 - Create 단계 함수"]
     /// # Arguments
     /// * `recent_datetime` - 가장 최신 날짜데이터
-    /// * `cur_utc_date` - 현재 날짜 데이터
     ///
     /// # Returns
-    /// * Result<Vec<StoreResult>, anyhow::Error>
-    async fn get_dynamic_create_index(
+    /// * Result<Vec<DistinctStoreResult>, anyhow::Error>
+    async fn get_dynamic_create_store_index(
         &self,
         recent_datetime: NaiveDateTime,
-        cur_utc_date: NaiveDateTime,
-    ) -> Result<Vec<StoreResult>, anyhow::Error> {
+    ) -> Result<Vec<DistinctStoreResult>, anyhow::Error> {
         let create_filter: Condition = Condition::all()
             .add(Expr::col((store::Entity, store::Column::UseYn)).eq("Y"))
             .add(
@@ -318,30 +272,28 @@ impl QueryService for QueryServicePub {
                             store_location_info_tbl::Column::RegDt,
                         ))
                         .gt(recent_datetime),
-                    )
+                    ),
             );
 
-
-        let result: Vec<StoreResult> = self
-            .get_changed_store_table(recent_datetime, cur_utc_date, create_filter)
+        let stores: Vec<StoreResult> = self
+            .get_changed_store_table(recent_datetime, create_filter)
             .await?;
-        Ok(result)
-    }
 
+        let distinct_result: Vec<DistinctStoreResult> = self.get_distinct_store_table(&stores)?;
+
+        Ok(distinct_result)
+    }
 
     #[doc = "동적색인 - Update 단계 함수"]
     /// # Arguments
     /// * `recent_datetime` - 가장 최신 날짜데이터
-    /// * `cur_utc_date` - 현재 날짜 데이터
     ///
     /// # Returns
-    /// * Result<Vec<StoreResult>, anyhow::Error>
-    async fn get_dynamic_update_index(
+    /// * Result<Vec<DistinctStoreResult>, anyhow::Error>
+    async fn get_dynamic_update_store_index(
         &self,
         recent_datetime: NaiveDateTime,
-        cur_utc_date: NaiveDateTime,
-    ) -> Result<Vec<StoreResult>, anyhow::Error> {
-        
+    ) -> Result<Vec<DistinctStoreResult>, anyhow::Error> {
         let update_filter: Condition = Condition::all()
             .add(Expr::col((store::Entity, store::Column::UseYn)).eq("Y"))
             .add(
@@ -371,29 +323,28 @@ impl QueryService for QueryServicePub {
                             store_location_info_tbl::Column::ChgDt,
                         ))
                         .gt(recent_datetime),
-                    )
+                    ),
             );
 
-        let result: Vec<StoreResult> = self
-            .get_changed_store_table(recent_datetime, cur_utc_date, update_filter)
+        let stores: Vec<StoreResult> = self
+            .get_changed_store_table(recent_datetime, update_filter)
             .await?;
 
-        Ok(result)
+        let distinct_result: Vec<DistinctStoreResult> = self.get_distinct_store_table(&stores)?;
+
+        Ok(distinct_result)
     }
 
-    #[doc = ""]
+    #[doc = "동적색인 - Delete 단계 함수"]
     /// # Arguments
     /// * `recent_datetime` - 가장 최신 날짜데이터
-    /// * `cur_utc_date` - 현재 날짜 데이터
     ///
     /// # Returns
-    /// * Result<Vec<StoreResult>, anyhow::Error>    
-    async fn get_dynamic_delete_index(
+    /// * Result<Vec<DistinctStoreResult>, anyhow::Error>    
+    async fn get_dynamic_delete_store_index(
         &self,
         recent_datetime: NaiveDateTime,
-        cur_utc_date: NaiveDateTime,
-    ) -> Result<Vec<StoreResult>, anyhow::Error> {
-
+    ) -> Result<Vec<DistinctStoreResult>, anyhow::Error> {
         let delete_filter: Condition = Condition::all()
             .add(Expr::col((store::Entity, store::Column::UseYn)).eq("N"))
             .add(
@@ -423,13 +374,15 @@ impl QueryService for QueryServicePub {
                             store_location_info_tbl::Column::ChgDt,
                         ))
                         .gt(recent_datetime),
-                    )
+                    ),
             );
-        
-        let result: Vec<StoreResult> = self
-            .get_changed_store_table(recent_datetime, cur_utc_date, delete_filter)
+
+        let stores: Vec<StoreResult> = self
+            .get_changed_store_table(recent_datetime, delete_filter)
             .await?;
 
-        Ok(result)
+        let distinct_result: Vec<DistinctStoreResult> = self.get_distinct_store_table(&stores)?;
+
+        Ok(distinct_result)
     }
 }

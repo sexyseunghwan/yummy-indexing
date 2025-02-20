@@ -141,43 +141,24 @@ impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
         &self,
         index_schedule: IndexSchedules,
     ) -> Result<(), anyhow::Error> {
-        let index_alias_name: &String = index_schedule.index_name();
-        let index_setting_path: &str = match index_schedule.setting_path() {
-            Some(index_setting_path) => index_setting_path.as_str(),
-            None => {
-                return Err(anyhow!(
-                    "[Error][store_static_index()] Please specify 'setting_path' for index"
-                ))
-            }
-        };
-
-        let sql_batch_size: usize = match index_schedule.sql_batch_size() {
-            Some(sql_batch_size) => *sql_batch_size,
-            None => {
-                return Err(anyhow!(
-                    "[Error][store_static_index()] Please specify 'sql_batch_size' for index"
-                ))
-            }
-        };
-
+                
         /* 중복이 존재하는 store 리스트 */
         let stores: Vec<StoreResult> = self
             .query_service
-            .get_all_store_table(sql_batch_size)
+            .get_all_store_table(&index_schedule)
             .await?;
-
+        
         /* 중복을 제외한 store 리스트 */
         let stores_distinct: Vec<DistinctStoreResult> =
             self.query_service.get_distinct_store_table(&stores)?;
 
         self.es_query_service
-            .post_indexing_data_by_bulk::<DistinctStoreResult>(
-                index_alias_name,
-                index_setting_path,
+            .post_indexing_data_by_bulk_static::<DistinctStoreResult>(
+                &index_schedule,
                 &stores_distinct,
             )
             .await?;
-
+        
         Ok(())
     }
 
@@ -191,22 +172,41 @@ impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
         &self,
         index_schedule: IndexSchedules,
     ) -> Result<(), anyhow::Error> {
-        let index_name: &String = index_schedule.index_name();
+
+        let cur_utc_date: NaiveDateTime = get_current_utc_naive_datetime(); /* 현재기준 UTC 시간 */
 
         /* 일단, 검색엔진에 색인된 정보중에 가장 최근의 timestamp 정보를 가져와 준다. */
         let recent_index_datetime: NaiveDateTime = self
             .es_query_service
-            .get_recent_index_datetime(index_name, "timestamp")
+            .get_recent_index_datetime(&index_schedule, "timestamp")
             .await?;
 
         /* 증분색인은 Create -> Update -> Delete 세단계로 나눠준다. */
-        let cur_utc_date: NaiveDateTime = get_current_utc_naive_datetime(); /* 현재기준 UTC 시간 */
-
         /* 1. Create */
-
+        let create_list: Vec<DistinctStoreResult> = self
+            .query_service
+            .get_dynamic_create_store_index(recent_index_datetime)
+            .await?;
+        
+        self.es_query_service
+            .post_indexing_data_by_bulk_dynamic::<DistinctStoreResult>(&index_schedule, &create_list)
+            .await
+            .map_err(|e| anyhow!("[Error][store_dynamic_index()] Dynamic Index Failed (Create) : {:?}", e))?;
+        
+        
         /* 2. Update */
+        let update_list: Vec<DistinctStoreResult> = self
+            .query_service
+            .get_dynamic_update_store_index(recent_index_datetime)
+            .await?;
+        
+        
 
         /* 3. Delete */
+        let delete_list: Vec<DistinctStoreResult> = self
+            .query_service
+            .get_dynamic_delete_store_index(recent_index_datetime)
+            .await?;
 
         // /* 일단, 검색엔진에 색인된 정보중에 가장 최근의 timestamp 정보를 가져와 준다. */
         // let recent_index_datetime: NaiveDateTime = self

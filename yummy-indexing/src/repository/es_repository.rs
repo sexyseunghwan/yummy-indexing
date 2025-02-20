@@ -110,6 +110,7 @@ pub trait EsRepository {
     async fn post_query(&self, document: &Value, index_name: &str) -> Result<(), anyhow::Error>;
     async fn delete_query_doc(&self, doc_id: &str, index_name: &str) -> Result<(), anyhow::Error>;
     async fn delete_query(&self, index_name: &str) -> Result<(), anyhow::Error>;
+    async fn delete_query_where_field(&self, index_name: &str, field_name: &str, field_value: i32) -> Result<(), anyhow::Error>;
     async fn get_indexes_mapping_by_alias(
         &self,
         index_alias_name: &str,
@@ -129,6 +130,7 @@ pub trait EsRepository {
         &self,
         index_name: &str,
         data: &Vec<T>,
+        batch_size: usize
     ) -> Result<(), anyhow::Error>;
     async fn create_index(
         &self,
@@ -465,6 +467,7 @@ impl EsRepository for EsRepositoryPub {
     /// # Arguments
     /// * `index_name` - index name
     /// * `data` - Data vectors to be indexed
+    /// * `batch_size` - Number of documents to perform bulk indexing operations at a time
     ///
     /// # Returns
     /// * Result<(), anyhow::Error>
@@ -472,31 +475,38 @@ impl EsRepository for EsRepositoryPub {
         &self,
         index_name: &str,
         data: &Vec<T>,
+        batch_size: usize
     ) -> Result<(), anyhow::Error> {
-        let response: Response = self
-            .execute_on_any_node(|es_client| async move {
-                let mut ops: Vec<BulkOperation<Value>> = Vec::with_capacity(data.len());
 
-                for item in data {
-                    /* Converting Data to JSON */
-                    let json_value = serde_json::to_value(&item)?;
+        for chunk in data.chunks(batch_size) {
 
-                    /* BulkOperation Generation (without ID) */
-                    ops.push(BulkOperation::index(json_value).into());
-                }
+            let response: Response = self
+                .execute_on_any_node(|es_client| async move {
+                    let mut ops: Vec<BulkOperation<Value>> = Vec::with_capacity(chunk.len());
 
-                let response: Response = es_client
-                    .es_conn
-                    .bulk(BulkParts::Index(index_name))
-                    .body(ops)
-                    .send()
-                    .await?;
+                    for item in chunk {
+                        /* Converting Data to JSON */
+                        let json_value: Value = serde_json::to_value(&item)?;
 
-                Ok(response)
-            })
-            .await?;
+                        /* BulkOperation Generation (without ID) */
+                        ops.push(BulkOperation::index(json_value).into());
+                    }
 
-        self.process_response_empty("bulk_query()", response).await
+                    let response: Response = es_client
+                        .es_conn
+                        .bulk(BulkParts::Index(index_name))
+                        .body(ops)
+                        .send()
+                        .await?;
+
+                    Ok(response)
+                })
+                .await?;
+
+            self.process_response_empty("bulk_query()", response).await?
+        }
+
+        Ok(())
     }
 
     #[doc = "function that deletes the id in the final step of scroll-api"]
@@ -574,7 +584,7 @@ impl EsRepository for EsRepositoryPub {
                     .body(es_query)
                     .send()
                     .await?;
-
+                
                 Ok(response)
             })
             .await?;
@@ -677,7 +687,7 @@ impl EsRepository for EsRepositoryPub {
             .await
     }
 
-    #[doc = "Function that EXECUTES elasticsearch queries - delete"]
+    #[doc = "Function that EXECUTES elasticsearch queries - delete by doc"]
     /// # Arguments
     /// * `doc_id` - 'doc unique number' of the target to be deleted
     /// * `index_name` - Index name to be deleted
@@ -699,6 +709,18 @@ impl EsRepository for EsRepositoryPub {
 
         self.process_response_empty("delete_query_doc()", response)
             .await
+    }
+
+    #[doc = "Function that EXECUTES elasticsearch queries - delete by field"]    
+    /// # Arguments
+    /// * `index_name` - Index name to be deleted
+    /// * `field_name` - Field name to be deleted
+    /// * `field_value` - Field value to be deleted
+    ///
+    /// # Returns
+    /// * Result<(), anyhow::Error>
+    async fn delete_query_where_field(&self, index_name: &str, field_name: &str, field_value: i32) -> Result<(), anyhow::Error> {
+
     }
 
     #[doc = "Functions that refresh a particular index to enable immediate search"]

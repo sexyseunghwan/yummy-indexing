@@ -3,3 +3,5 @@ index_name = "yummy-index"
 time = "0 * * * * * *"
 indexing_type = "dynamic"
 function_name = "store_dynamic_index"
+sql_batch_size = 10
+es_batch_size = 10

@@ -1,6 +1,6 @@
-use mysql_async::prelude::Query;
-
 use crate::common::*;
+
+use crate::configuration::index_schedules_config::*;
 
 use crate::repository::es_repository::*;
 
@@ -9,18 +9,36 @@ use crate::utils_module::time_utils::*;
 
 #[async_trait]
 pub trait EsQueryService {
-    async fn post_indexing_data_by_bulk<T: Serialize + Send + Sync + Debug>(
+    async fn post_indexing_data_by_bulk_static<T: Serialize + Send + Sync + Debug>(
         &self,
-        index_alias_name: &str,
-        index_settings_path: &str,
+        index_schedule: &IndexSchedules,
+        data: &Vec<T>,
+    ) -> Result<(), anyhow::Error>;
+
+    async fn post_indexing_data_by_bulk_dynamic<T: Serialize + Send + Sync + Debug>(
+        &self,
+        index_schedule: &IndexSchedules,
         data: &Vec<T>,
     ) -> Result<(), anyhow::Error>;
 
     async fn get_recent_index_datetime(
         &self,
-        index_name: &str,
+        index_schedule: &IndexSchedules,
         timestamp_field: &str,
     ) -> Result<NaiveDateTime, anyhow::Error>;
+    
+    async fn update_index<T: Serialize + Send + Sync + Debug>(
+        &self,
+        index_schedule: &IndexSchedules,
+        data: &Vec<T>,
+        unique_field_name: &str
+    ) -> Result<(), anyhow::Error>;
+
+    // async fn delete_index<T: Serialize + Send + Sync + Debug> {
+    //     &self,
+    //     index_schedule: &IndexSchedules,
+        
+    // }
 
     async fn get_test(&self) -> Result<(), anyhow::Error>;
 }
@@ -30,20 +48,32 @@ pub struct EsQueryServicePub;
 
 #[async_trait]
 impl EsQueryService for EsQueryServicePub {
-    #[doc = "static index function"]
+    #[doc = "Elasticsearch - static index function"]
     /// # Arguments
-    /// * `index_alias_name` - alias for index
-    /// * `index_settings_path` - File path for setting index schema
+    /// * `index_schedule` - Index schedule information
     /// * `data` - Vector information to be indexed
     ///
     /// # Returns
     /// * Result<(), anyhow::Error>
-    async fn post_indexing_data_by_bulk<T: Serialize + Send + Sync + Debug>(
+    async fn post_indexing_data_by_bulk_static<T: Serialize + Send + Sync + Debug>(
         &self,
-        index_alias_name: &str,
-        index_settings_path: &str,
+        index_schedule: &IndexSchedules,
         data: &Vec<T>,
     ) -> Result<(), anyhow::Error> {
+        
+        /* === information of  index_schedule === */
+        let index_alias_name: &String = index_schedule.index_name();
+        let index_settings_path: &str = match index_schedule.setting_path() {
+            Some(index_setting_path) => index_setting_path.as_str(),
+            None => {
+                return Err(anyhow!(
+                    "[Error][store_static_index()] Please specify 'setting_path' for index"
+                ))
+            }
+        };
+        let es_batch_size: usize = *index_schedule.es_batch_size();
+        /* ====================================== */
+        
         let es_conn: ElasticConnGuard = get_elastic_guard_conn().await?;
 
         /* Put today's date time on the index you want to create. */
@@ -56,7 +86,7 @@ impl EsQueryService for EsQueryServicePub {
         es_conn.create_index(&new_index_name, &json_body).await?;
 
         /* Bulk post the data to the index above at once. */
-        es_conn.bulk_indexing_query(&new_index_name, data).await?;
+        es_conn.bulk_indexing_query(&new_index_name, data, es_batch_size).await?;
 
         /* 해당 인덱스가 있는지 없는지 확인해준다. */
         let index_exists_yn: bool = match es_conn.check_index_exist(index_alias_name).await {
@@ -99,18 +129,44 @@ impl EsQueryService for EsQueryServicePub {
         Ok(())
     }
 
+    #[doc = "Elasticsearch - dynamic index function"]
+    /// # Arguments
+    /// * `index_schedule` - Index schedule information
+    /// * `data` - Vector information to be indexed
+    ///
+    /// # Returns
+    /// * Result<(), anyhow::Error>
+    async fn post_indexing_data_by_bulk_dynamic<T: Serialize + Send + Sync + Debug>(
+        &self,
+        //index_alias_name: &str,
+        index_schedule: &IndexSchedules,
+        data: &Vec<T>,
+    ) -> Result<(), anyhow::Error> {
+        
+        let index_alias_name: &String = index_schedule.index_name();
+        let es_batch_size: usize = *index_schedule.es_batch_size();
+        
+        let es_conn: ElasticConnGuard = get_elastic_guard_conn().await?;
+        es_conn.bulk_indexing_query(&index_alias_name, data, es_batch_size).await?;
+
+        Ok(())
+    }
+
     #[doc = "특정 인덱스에서 가장 최신 날짜를 쿼리하는 함수"]
     /// # Arguments
-    /// * `index_name` - Index name
+    /// * `index_schedule` - Index schedule information
     /// * `timestamp_field` - Field name for time
     ///
     /// # Returns
     /// * Result<NaiveDateTime, anyhow::Error>
     async fn get_recent_index_datetime(
         &self,
-        index_name: &str,
+        index_schedule: &IndexSchedules,
         timestamp_field: &str,
     ) -> Result<NaiveDateTime, anyhow::Error> {
+        
+        let index_name: &String = index_schedule.index_name();
+        
         let es_conn: ElasticConnGuard = get_elastic_guard_conn().await?;
 
         let es_query: Value = json!({
@@ -133,6 +189,43 @@ impl EsQueryService for EsQueryServicePub {
             get_naive_datetime_from_str(timestamp_str, "%Y-%m-%dT%H:%M:%SZ")?;
 
         Ok(timestamp)
+    }
+
+    #[doc = "기존의 Elasticsearch 문서들을 update 해주는 함수"]
+    /// # Arguments
+    /// * `index_schedule` - Index schedule information
+    /// * `data` - Vector information to be indexed
+    ///
+    /// # Returns
+    /// * Result<(), anyhow::Error>
+    async fn update_index<T: Serialize + Send + Sync + Debug>(
+        &self,
+        index_schedule: &IndexSchedules,
+        data: &Vec<T>,
+        unique_field_name: &str
+    ) -> Result<(), anyhow::Error> {
+        
+        let index_name: &String = index_schedule.index_name();
+        
+        let es_conn: ElasticConnGuard = get_elastic_guard_conn().await?;
+        
+        for item in data {
+            let json_value: Value = serde_json::to_value(&item)?;
+            
+            let unique_value: i32 = json_value[&unique_field_name]
+                .as_i64()
+                .ok_or_else(|| anyhow!("[Error][update_index()] There was a problem converting data for 'unique_value'"))?
+                .try_into()?;
+
+            /* 기존 문서 삭제 */
+            es_conn.delete_query(index_name).await?;
+
+            /* 새로운 문서 색인 */
+            //es_conn.post_query_struct(param_struct, index_name)
+        }
+        
+        
+        Ok(())
     }
 
     async fn get_test(&self) -> Result<(), anyhow::Error> {
