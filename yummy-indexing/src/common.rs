@@ -53,7 +53,8 @@ pub use elasticsearch::{
         IndicesCreateParts, IndicesDeleteParts, IndicesGetAliasParts, IndicesGetParts,
         IndicesRefreshParts,
     },
-    BulkOperation, BulkParts, DeleteParts, Elasticsearch, IndexParts, SearchParts,
+    BulkOperation, BulkParts, DeleteByQueryParts, DeleteParts, Elasticsearch, IndexParts,
+    SearchParts,
 };
 
 pub use anyhow::{anyhow, Result};

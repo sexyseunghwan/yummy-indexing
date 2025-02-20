@@ -26,19 +26,20 @@ pub trait EsQueryService {
         index_schedule: &IndexSchedules,
         timestamp_field: &str,
     ) -> Result<NaiveDateTime, anyhow::Error>;
-    
+
     async fn update_index<T: Serialize + Send + Sync + Debug>(
+        &self,
+        index_schedule: &IndexSchedules,
+        data: &Vec<T>,
+        unique_field_name: &str,
+    ) -> Result<(), anyhow::Error>;
+
+    async fn delete_index<T: Serialize + Send + Sync + Debug>(
         &self,
         index_schedule: &IndexSchedules,
         data: &Vec<T>,
         unique_field_name: &str
     ) -> Result<(), anyhow::Error>;
-
-    // async fn delete_index<T: Serialize + Send + Sync + Debug> {
-    //     &self,
-    //     index_schedule: &IndexSchedules,
-        
-    // }
 
     async fn get_test(&self) -> Result<(), anyhow::Error>;
 }
@@ -60,7 +61,6 @@ impl EsQueryService for EsQueryServicePub {
         index_schedule: &IndexSchedules,
         data: &Vec<T>,
     ) -> Result<(), anyhow::Error> {
-        
         /* === information of  index_schedule === */
         let index_alias_name: &String = index_schedule.index_name();
         let index_settings_path: &str = match index_schedule.setting_path() {
@@ -73,7 +73,7 @@ impl EsQueryService for EsQueryServicePub {
         };
         let es_batch_size: usize = *index_schedule.es_batch_size();
         /* ====================================== */
-        
+
         let es_conn: ElasticConnGuard = get_elastic_guard_conn().await?;
 
         /* Put today's date time on the index you want to create. */
@@ -86,7 +86,9 @@ impl EsQueryService for EsQueryServicePub {
         es_conn.create_index(&new_index_name, &json_body).await?;
 
         /* Bulk post the data to the index above at once. */
-        es_conn.bulk_indexing_query(&new_index_name, data, es_batch_size).await?;
+        es_conn
+            .bulk_indexing_query(&new_index_name, data, es_batch_size)
+            .await?;
 
         /* 해당 인덱스가 있는지 없는지 확인해준다. */
         let index_exists_yn: bool = match es_conn.check_index_exist(index_alias_name).await {
@@ -142,13 +144,14 @@ impl EsQueryService for EsQueryServicePub {
         index_schedule: &IndexSchedules,
         data: &Vec<T>,
     ) -> Result<(), anyhow::Error> {
-        
         let index_alias_name: &String = index_schedule.index_name();
         let es_batch_size: usize = *index_schedule.es_batch_size();
-        
-        let es_conn: ElasticConnGuard = get_elastic_guard_conn().await?;
-        es_conn.bulk_indexing_query(&index_alias_name, data, es_batch_size).await?;
 
+        let es_conn: ElasticConnGuard = get_elastic_guard_conn().await?;
+        es_conn
+            .bulk_indexing_query(&index_alias_name, data, es_batch_size)
+            .await?;
+        
         Ok(())
     }
 
@@ -164,9 +167,8 @@ impl EsQueryService for EsQueryServicePub {
         index_schedule: &IndexSchedules,
         timestamp_field: &str,
     ) -> Result<NaiveDateTime, anyhow::Error> {
-        
         let index_name: &String = index_schedule.index_name();
-        
+
         let es_conn: ElasticConnGuard = get_elastic_guard_conn().await?;
 
         let es_query: Value = json!({
@@ -195,6 +197,7 @@ impl EsQueryService for EsQueryServicePub {
     /// # Arguments
     /// * `index_schedule` - Index schedule information
     /// * `data` - Vector information to be indexed
+    /// * `unique_field_name` - Name of a unique field
     ///
     /// # Returns
     /// * Result<(), anyhow::Error>
@@ -202,31 +205,70 @@ impl EsQueryService for EsQueryServicePub {
         &self,
         index_schedule: &IndexSchedules,
         data: &Vec<T>,
-        unique_field_name: &str
+        unique_field_name: &str,
     ) -> Result<(), anyhow::Error> {
-        
         let index_name: &String = index_schedule.index_name();
-        
+
         let es_conn: ElasticConnGuard = get_elastic_guard_conn().await?;
-        
+
         for item in data {
             let json_value: Value = serde_json::to_value(&item)?;
-            
+
             let unique_value: i32 = json_value[&unique_field_name]
                 .as_i64()
                 .ok_or_else(|| anyhow!("[Error][update_index()] There was a problem converting data for 'unique_value'"))?
                 .try_into()?;
-
+            
             /* 기존 문서 삭제 */
-            es_conn.delete_query(index_name).await?;
-
+            es_conn
+                .delete_query_where_field(index_name, unique_field_name, unique_value)
+                .await?;
+            
             /* 새로운 문서 색인 */
-            //es_conn.post_query_struct(param_struct, index_name)
+            es_conn.post_query_struct::<T>(item, index_name).await?;
         }
         
+        Ok(())
+    }   
+
+
+    #[doc = "기존의 Elasticsearch 문서들을 삭제 해주는 함수"]
+    /// # Arguments
+    /// * `index_schedule` - Index schedule information
+    /// * `data` - Vector information to be indexed
+    /// * `unique_field_name` - Name of a unique field
+    ///
+    /// # Returns
+    /// * Result<(), anyhow::Error>
+    async fn delete_index<T: Serialize + Send + Sync + Debug>(
+        &self,
+        index_schedule: &IndexSchedules,
+        data: &Vec<T>,
+        unique_field_name: &str
+    ) -> Result<(), anyhow::Error> {
+
+        let index_name: &String = index_schedule.index_name();
+
+        let es_conn: ElasticConnGuard = get_elastic_guard_conn().await?;
+
+        for document in data {
+            let json_value: Value = serde_json::to_value(&document)?;
+
+            let unique_value: i32 = json_value[&unique_field_name]
+                .as_i64()
+                .ok_or_else(|| anyhow!("[Error][delete_index()] There was a problem converting data for 'unique_value'"))?
+                .try_into()?;
+             
+             /* 기존 문서 삭제 */
+             es_conn
+                .delete_query_where_field(index_name, unique_field_name, unique_value)
+                .await?;
+        }
         
+
         Ok(())
     }
+
 
     async fn get_test(&self) -> Result<(), anyhow::Error> {
         let es_conn: ElasticConnGuard = get_elastic_guard_conn().await?;

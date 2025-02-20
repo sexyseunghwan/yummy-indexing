@@ -9,7 +9,7 @@ pub struct IndexSchedules {
     pub setting_path: Option<String>,
     pub function_name: String,
     pub sql_batch_size: usize,
-    pub es_batch_size: usize
+    pub es_batch_size: usize,
 }
 
 #[derive(Debug, Deserialize, Serialize, Getters, Clone)]

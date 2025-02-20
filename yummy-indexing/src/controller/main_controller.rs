@@ -93,41 +93,6 @@ impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
             }
         }
 
-        //let index_alias_name: &String = index_schedule.index_name();
-
-        /* 해당 색인이 static/dynamic 인지 확인 */
-        // if index_schedule.indexing_type() == "static" {
-        //     //self.es_query_service.post_indexing_data_by_bulk(index_alias_name, index_settings_path, data).await?;
-        // } else if index_schedule.indexing_type() == "dynamic" {
-
-        // } else {
-        //     return Err(anyhow!("[Error][main_task()] Static index or dynamic index only."))
-        // }
-
-        /* 중복이 존재하는 store 리스트 */
-        // let stores: Vec<StoreResult> = self.query_service.get_all_store_table(10).await?;
-
-        // /* 중복을 제외한 store 리스트 */
-        // let stores_distinct: Vec<DistinctStoreResult> =
-        //     self.query_service.get_distinct_store_table(&stores)?;
-
-        // // for elem in stores_distinct {
-        // //     println!("{:?}", elem);
-        // // }
-
-        // /* Elasticsearch 색인 */
-        // //let index_alias: &str = "yummy-index";
-        // let index_alias: &str = "test-index";
-
-        // /* index_alias 에 대한 인덱스가 없을경우 새롭게 생성 */
-        // self.es_query_service
-        //     .post_indexing_data_by_bulk::<DistinctStoreResult>(
-        //         index_alias,
-        //         "./indexing_settings/store_infos.json",
-        //         &stores_distinct,
-        //     )
-        //     .await?;
-
         Ok(())
     }
 
@@ -141,7 +106,10 @@ impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
         &self,
         index_schedule: IndexSchedules,
     ) -> Result<(), anyhow::Error> {
-                
+        
+        /* 현재기준 UTC 시간 */
+        let cur_utc_date: NaiveDateTime = get_current_utc_naive_datetime(); 
+
         /* 중복이 존재하는 store 리스트 */
         let stores: Vec<StoreResult> = self
             .query_service
@@ -150,7 +118,7 @@ impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
         
         /* 중복을 제외한 store 리스트 */
         let stores_distinct: Vec<DistinctStoreResult> =
-            self.query_service.get_distinct_store_table(&stores)?;
+            self.query_service.get_distinct_store_table(&stores, cur_utc_date)?;
 
         self.es_query_service
             .post_indexing_data_by_bulk_static::<DistinctStoreResult>(
@@ -158,6 +126,8 @@ impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
                 &stores_distinct,
             )
             .await?;
+        
+        info!("Store - Static Create Indexing: {}", stores_distinct.len());
         
         Ok(())
     }
@@ -185,69 +155,47 @@ impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
         /* 1. Create */
         let create_list: Vec<DistinctStoreResult> = self
             .query_service
-            .get_dynamic_create_store_index(recent_index_datetime)
+            .get_dynamic_create_store_index(recent_index_datetime, cur_utc_date)
             .await?;
+
+
+        if !create_list.is_empty() {
+            self.es_query_service
+                .post_indexing_data_by_bulk_dynamic::<DistinctStoreResult>(&index_schedule, &create_list)
+                .await
+                .map_err(|e| anyhow!("[Error][store_dynamic_index()] Dynamic Index Failed (Create) : {:?}", e))?;
+        }
         
-        self.es_query_service
-            .post_indexing_data_by_bulk_dynamic::<DistinctStoreResult>(&index_schedule, &create_list)
-            .await
-            .map_err(|e| anyhow!("[Error][store_dynamic_index()] Dynamic Index Failed (Create) : {:?}", e))?;
-        
+        info!("Dynamic Create Indexing: {}", create_list.len());
         
         /* 2. Update */
         let update_list: Vec<DistinctStoreResult> = self
             .query_service
-            .get_dynamic_update_store_index(recent_index_datetime)
+            .get_dynamic_update_store_index(recent_index_datetime, cur_utc_date)
             .await?;
         
+        if !update_list.is_empty() {
+            self.es_query_service
+                .update_index(&index_schedule, &update_list, "seq")
+                .await?;
+        }
         
+        info!("Dynamic Update Indexing: {}", update_list.len());
 
         /* 3. Delete */
         let delete_list: Vec<DistinctStoreResult> = self
             .query_service
-            .get_dynamic_delete_store_index(recent_index_datetime)
+            .get_dynamic_delete_store_index(recent_index_datetime, cur_utc_date)
             .await?;
-
-        // /* 일단, 검색엔진에 색인된 정보중에 가장 최근의 timestamp 정보를 가져와 준다. */
-        // let recent_index_datetime: NaiveDateTime = self
-        //     .es_query_service
-        //     .get_recent_index_datetime(index_name, "timestamp")
-        //     .await?;
-
-        // /* 해당 timestamp 정보를 기준으로 더 최근 데이터를 DB 에서 가져와준다. */
-        // let recent_store_data: Vec<StoreResult> = self
-        //     .query_service
-        //     .get_updated_store_table(recent_index_datetime)
-        //     .await?;
-
-        // for elem in recent_store_data {
-        //     println!("{:?}", elem);
-        // }
-
+        
+        if !delete_list.is_empty() {
+            self.es_query_service
+                .delete_index(&index_schedule, &delete_list, "seq")
+                .await?;
+        }
+        
+        info!("Dynamic Delete Indexing: {}", delete_list.len());
+        
         Ok(())
     }
-
-    // #[doc = "정적색인 함수"]
-    // /// # Arguments
-    // /// * `index_schedule` - 인덱스 스케쥴 객체
-    // ///
-    // /// # Returns
-    // /// * Result<(), anyhow::Error>
-    // async fn static_index(&self, index_schedule: IndexSchedules) -> Result<(), anyhow::Error> {
-
-    //     let index_alias_name: &String = index_schedule.index_name();
-
-    //     Ok(())
-    // }
-
-    // #[doc = "동적색인 함수"]
-    // /// # Arguments
-    // /// * `index_schedule` - 인덱스 스케쥴 객체
-    // ///
-    // /// # Returns
-    // /// * Result<(), anyhow::Error>
-    // async fn dynamic_index(&self, index_schedule: IndexSchedules) -> Result<(), anyhow::Error> {
-
-    //     Ok(())
-    // }
 }

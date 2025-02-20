@@ -110,7 +110,12 @@ pub trait EsRepository {
     async fn post_query(&self, document: &Value, index_name: &str) -> Result<(), anyhow::Error>;
     async fn delete_query_doc(&self, doc_id: &str, index_name: &str) -> Result<(), anyhow::Error>;
     async fn delete_query(&self, index_name: &str) -> Result<(), anyhow::Error>;
-    async fn delete_query_where_field(&self, index_name: &str, field_name: &str, field_value: i32) -> Result<(), anyhow::Error>;
+    async fn delete_query_where_field(
+        &self,
+        index_name: &str,
+        field_name: &str,
+        field_value: i32,
+    ) -> Result<(), anyhow::Error>;
     async fn get_indexes_mapping_by_alias(
         &self,
         index_alias_name: &str,
@@ -130,33 +135,29 @@ pub trait EsRepository {
         &self,
         index_name: &str,
         data: &Vec<T>,
-        batch_size: usize
+        batch_size: usize,
     ) -> Result<(), anyhow::Error>;
     async fn create_index(
         &self,
         index_name: &str,
         index_setting_json: &Value,
     ) -> Result<(), anyhow::Error>;
-
     async fn post_query_struct<T: Serialize + Sync>(
         &self,
         param_struct: &T,
         index_name: &str,
     ) -> Result<(), anyhow::Error>;
-
     async fn get_scroll_initial_search_query(
         &self,
         index_name: &str,
         scroll_duration: &str,
         es_query: &Value,
     ) -> Result<Value, anyhow::Error>;
-
     async fn get_scroll_search_query(
         &self,
         scroll_duration: &str,
         scroll_id: &str,
     ) -> Result<Value, anyhow::Error>;
-
     async fn clear_scroll_info(&self, scroll_id: &str) -> Result<(), anyhow::Error>;
     async fn refresh_index(&self, index_name: &str) -> Result<(), anyhow::Error>;
     async fn check_index_exist(&self, index_name: &str) -> Result<Value, anyhow::Error>;
@@ -475,11 +476,9 @@ impl EsRepository for EsRepositoryPub {
         &self,
         index_name: &str,
         data: &Vec<T>,
-        batch_size: usize
+        batch_size: usize,
     ) -> Result<(), anyhow::Error> {
-
         for chunk in data.chunks(batch_size) {
-
             let response: Response = self
                 .execute_on_any_node(|es_client| async move {
                     let mut ops: Vec<BulkOperation<Value>> = Vec::with_capacity(chunk.len());
@@ -503,7 +502,8 @@ impl EsRepository for EsRepositoryPub {
                 })
                 .await?;
 
-            self.process_response_empty("bulk_query()", response).await?
+            self.process_response_empty("bulk_query()", response)
+                .await?
         }
 
         Ok(())
@@ -584,7 +584,7 @@ impl EsRepository for EsRepositoryPub {
                     .body(es_query)
                     .send()
                     .await?;
-                
+
                 Ok(response)
             })
             .await?;
@@ -633,7 +633,7 @@ impl EsRepository for EsRepositoryPub {
         param_struct: &T,
         index_name: &str,
     ) -> Result<(), anyhow::Error> {
-        let struct_json = convert_json_from_struct(param_struct)?;
+        let struct_json: Value = convert_json_from_struct(param_struct)?;
         self.post_query(&struct_json, index_name).await?;
 
         Ok(())
@@ -711,7 +711,7 @@ impl EsRepository for EsRepositoryPub {
             .await
     }
 
-    #[doc = "Function that EXECUTES elasticsearch queries - delete by field"]    
+    #[doc = "Function that EXECUTES elasticsearch queries - delete by field"]
     /// # Arguments
     /// * `index_name` - Index name to be deleted
     /// * `field_name` - Field name to be deleted
@@ -719,8 +719,33 @@ impl EsRepository for EsRepositoryPub {
     ///
     /// # Returns
     /// * Result<(), anyhow::Error>
-    async fn delete_query_where_field(&self, index_name: &str, field_name: &str, field_value: i32) -> Result<(), anyhow::Error> {
+    async fn delete_query_where_field(
+        &self,
+        index_name: &str,
+        field_name: &str,
+        field_value: i32,
+    ) -> Result<(), anyhow::Error> {
+        let response: Response = self
+            .execute_on_any_node(|es_client| async move {
+                let response = es_client
+                    .es_conn
+                    .delete_by_query(DeleteByQueryParts::Index(&[index_name]))
+                    .body(json!({
+                        "query": {
+                            "term": {
+                                field_name: field_value
+                            }
+                        }
+                    }))
+                    .send()
+                    .await?;
 
+                Ok(response)
+            })
+            .await?;
+
+        self.process_response_empty("refresh_index()", response)
+            .await
     }
 
     #[doc = "Functions that refresh a particular index to enable immediate search"]
