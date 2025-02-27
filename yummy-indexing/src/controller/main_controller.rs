@@ -79,9 +79,11 @@ impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
     pub async fn main_task(&self, index_schedule: IndexSchedules) -> Result<(), anyhow::Error> {
         let function_name: &str = index_schedule.function_name().as_str();
 
+        println!("function_name: {:?}", function_name);
+        
         match function_name {
             "store_static_index" => self.store_static_index(index_schedule).await?,
-            "store_dynamic_index" => self.store_dynamic_index(index_schedule).await?,
+            //"store_dynamic_index" => self.store_dynamic_index(index_schedule).await?,
             _ => {
                 return Err(anyhow!(
                     "[Error][main_task()] The mapped function does not exist.: {}",
@@ -103,6 +105,8 @@ impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
         &self,
         index_schedule: IndexSchedules,
     ) -> Result<(), anyhow::Error> {
+        println!("static start");
+        
         /* 현재기준 UTC 시간 */
         let cur_utc_date: NaiveDateTime = get_current_utc_naive_datetime();
 
