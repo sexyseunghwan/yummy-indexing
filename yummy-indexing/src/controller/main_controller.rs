@@ -76,8 +76,6 @@ impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
     pub async fn main_task(&self, index_schedule: IndexSchedules) -> Result<(), anyhow::Error> {
         let function_name: &str = index_schedule.function_name().as_str();
 
-        println!("function_name: {:?}", function_name);
-
         match function_name {
             "store_static_index" => self.store_static_index(index_schedule).await?,
             "store_dynamic_index" => self.store_dynamic_index(index_schedule).await?,
@@ -88,7 +86,7 @@ impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
                 ))
             }
         }
-
+        
         Ok(())
     }
 

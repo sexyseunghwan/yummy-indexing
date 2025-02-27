@@ -41,6 +41,12 @@
 				"stopwords_path": "config/yummy/stop_words.txt"
 			}
 		},
+		"char_filter": {
+			"chosung_filter": {
+				"type": "mapping",
+				""
+			}
+		},
 		"tokenizer": {
 			"nori_tokenizer_with_user_dictionary": {
 				"type": "nori_tokenizer",
@@ -53,6 +59,12 @@
 			"seperate_tokenizer": {
 				"type": "pattern",
 				"pattern": "[,]|[|]"
+			},
+			"edge_ngram_tokenizer": {
+				"type": "edge_ngram",
+				"min_gram": 1,
+				"max_gram": 10,
+				"token_chars": ["letter", "digit", "whitespace", "symbol"]
 			}
 		}
 	}
@@ -68,7 +80,12 @@
 		"similarity": "disable_idf", 
 		"fields": { "keyword": { "type": "keyword" } } },
       "type": { "type": "keyword", "null_value": "NULL" },
-      "address": { "type": "text", "fields": { "keyword": { "type": "keyword" } }},
+      "address": { 
+		"type": "text", 
+		"analyzer": "korean",
+		"search_analyzer": "korean",
+		"similarity": "disable_idf",
+		"fields": { "keyword": { "type": "keyword" } }},
       "lat": { "type": "double" },
       "lng": { "type": "double" },
       "zero_possible": { "type": "boolean" },
