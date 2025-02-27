@@ -7,10 +7,7 @@ use crate::configuration::{index_schedules_config::*, system_config::*};
 
 use crate::models::store_to_elastic::*;
 
-
 use crate::utils_module::time_utils::*;
-
-// use crate::configuration::elasitc_index_name::*;
 
 #[derive(Debug, new)]
 pub struct MainController<Q: QueryService, E: EsQueryService> {
@@ -80,10 +77,10 @@ impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
         let function_name: &str = index_schedule.function_name().as_str();
 
         println!("function_name: {:?}", function_name);
-        
+
         match function_name {
             "store_static_index" => self.store_static_index(index_schedule).await?,
-            //"store_dynamic_index" => self.store_dynamic_index(index_schedule).await?,
+            "store_dynamic_index" => self.store_dynamic_index(index_schedule).await?,
             _ => {
                 return Err(anyhow!(
                     "[Error][main_task()] The mapped function does not exist.: {}",
@@ -105,7 +102,6 @@ impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
         &self,
         index_schedule: IndexSchedules,
     ) -> Result<(), anyhow::Error> {
-        println!("static start");
         
         /* 현재기준 UTC 시간 */
         let cur_utc_date: NaiveDateTime = get_current_utc_naive_datetime();
