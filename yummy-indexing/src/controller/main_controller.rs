@@ -100,7 +100,7 @@ impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
         &self,
         index_schedule: IndexSchedules,
     ) -> Result<(), anyhow::Error> {
-        
+
         /* 현재기준 UTC 시간 */
         let cur_utc_date: NaiveDateTime = get_current_utc_naive_datetime();
 
@@ -121,7 +121,7 @@ impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
                 &stores_distinct,
             )
             .await?;
-
+            
         /* 색인시간 최신화 */
         self.query_service
             .update_recent_date_to_elastic_index_info(&index_schedule, cur_utc_date)
@@ -215,6 +215,64 @@ impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
                 .await?;
         }
 
+        Ok(())
+    }
+    
+    #[doc = "사용자의 입력을 받아서 색인을 진행시켜주는 함수"]
+    /// # Arguments
+    /// * `index_schedules` - 인덱스 스케쥴 객체들
+    ///
+    /// # Returns
+    /// * Result<(), anyhow::Error>
+    pub async fn cli_indexing_task(&self, index_schedules: IndexSchedulesConfig) -> Result<(), anyhow::Error> {
+        
+        let mut stdout: io::Stdout = io::stdout();         
+        
+        let mut idx: i32 = 0;
+
+        writeln!(stdout, "[================ Yummy Indexing CLI ================]").unwrap();
+        writeln!(stdout, "Select the index you want to perform.").unwrap();
+        
+        for index in index_schedules.index() {
+            idx += 1;
+            writeln!(stdout, "[{}] {:?} - {:?}", idx, index.index_name(), index.indexing_type).unwrap();
+        }
+
+        loop {
+            writeln!(stdout, "\n").unwrap();
+            write!(stdout, "Please enter your number: ").unwrap();
+            stdout.flush().unwrap();/* 즉시출력 */
+            
+            let mut input: String = String::new();
+            io::stdin().read_line(&mut input).expect("Failed to read line");
+            
+            match input.trim().parse::<i32>() {
+                Ok(number) => {
+                    if number > 0 && number <= idx {
+                        let index: &IndexSchedules = index_schedules.index().get((number - 1) as usize).unwrap();
+
+                        /* 여기서 색인 작업을 진행해준다. */
+                        match self.main_task(index.clone()).await {
+                            Ok(_) => (),
+                            Err(e) => {
+                                error!("[Error][cli_indexing_task() -> main_task()] {:?}", e);
+                                writeln!(stdout, "Index failed.").unwrap();
+                                break;
+                            }
+                        }
+                        
+                        writeln!(stdout, "Indexing operation completed.").unwrap();
+                        break;
+                    } else {
+                        writeln!(stdout, "Invalid input, please enter a number between 1 and {}.", idx).unwrap();
+                    }
+                } 
+                Err(_) => {
+                    writeln!(stdout, "Invalid input, please enter a number.").unwrap();
+                }
+            }
+        }
+        
         Ok(())
     }
 }

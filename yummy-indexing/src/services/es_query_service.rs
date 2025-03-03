@@ -71,20 +71,27 @@ impl EsQueryService for EsQueryServicePub {
                 ))
             }
         };
+
         let es_batch_size: usize = *index_schedule.es_batch_size();
         /* ====================================== */
-
         let es_conn: ElasticConnGuard = get_elastic_guard_conn().await?;
 
         /* Put today's date time on the index you want to create. */
         let curr_time: String = get_current_utc_naive_datetime()
             .format("%Y%m%d%H%M%S")
             .to_string();
+
         let new_index_name: String = format!("{}-{}", index_alias_name, curr_time);
+        let json_body: Value = match read_json_from_file(index_settings_path) {
+            Ok(json_body) => json_body,
+            Err(e) => {
+                error!("[Error][post_indexing_data_by_bulk()] Failed to read 'index_settings' file.: {:?}", e);
+                return Err(anyhow!("[Error][post_indexing_data_by_bulk()] Failed to read 'index_settings' file.: {:?}", e));
+            }
+        };
 
-        let json_body: Value = read_json_from_file(index_settings_path)?;
         es_conn.create_index(&new_index_name, &json_body).await?;
-
+        
         /* Bulk post the data to the index above at once. */
         es_conn
             .bulk_indexing_query(&new_index_name, data, es_batch_size)
@@ -98,6 +105,7 @@ impl EsQueryService for EsQueryServicePub {
                 false
             }
         };
+
 
         if index_exists_yn {
             /* 기존 인덱스가 존재하는 경우 */

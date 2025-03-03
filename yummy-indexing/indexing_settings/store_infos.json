@@ -41,12 +41,6 @@
 				"stopwords_path": "config/yummy/stop_words.txt"
 			}
 		},
-		"char_filter": {
-			"chosung_filter": {
-				"type": "mapping",
-				""
-			}
-		},
 		"tokenizer": {
 			"nori_tokenizer_with_user_dictionary": {
 				"type": "nori_tokenizer",
