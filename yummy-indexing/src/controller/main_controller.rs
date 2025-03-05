@@ -145,12 +145,6 @@ impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
     ) -> Result<(), anyhow::Error> {
         let cur_utc_date: NaiveDateTime = get_current_utc_naive_datetime(); /* 현재기준 UTC 시간 */
 
-        /* 일단, 검색엔진에 색인된 정보중에 가장 최근의 timestamp 정보를 가져와 준다. -> 필요없을듯 */
-        // let recent_index_datetime: NaiveDateTime = self
-        //     .es_query_service
-        //     .get_recent_index_datetime(&index_schedule, "timestamp")
-        //     .await?;
-
         /* RDB 에서 검색엔진에 가장 마지막으로 색인한 날짜를 가져와준다. */
         let recent_index_datetime: NaiveDateTime = self
             .query_service
@@ -219,7 +213,7 @@ impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
         Ok(())
     }
     
-    #[doc = "docs"]
+    #[doc = ""]
     pub async fn auto_complete_static_index(&self, index_schedule: IndexSchedules) -> Result<(), anyhow::Error> {
 
         /* 현재기준 UTC 시간 */
