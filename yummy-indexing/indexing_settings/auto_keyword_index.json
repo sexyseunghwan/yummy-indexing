@@ -1,0 +1,67 @@
+{
+    "settings": {
+        "index": {
+            "number_of_shards": 3,
+            "number_of_replicas": 1,
+            "max_result_window": 500000,
+            "max_ngram_diff": "50",
+            "max_shingle_diff": "50"
+        },
+        "analysis": {
+            "analyzer": {
+                "token_search_analyzer": {
+                    "tokenizer": "whitespace",
+                    "filter": [
+                        "lowercase",
+                        "trim"
+                    ]
+                },
+                "ngram_analyzer": {
+                    "type": "custom",
+                    "tokenizer" : "keyword",
+                    "filter": [
+                        "lowercase",
+                        "trim",
+                        "edge_ngram_filter_front"
+                    ]
+                },
+                "autocomplate_search_analyzer": {
+                    "type" : "custom",
+                    "tokenizer" : "keyword",
+                    "filter" : [
+                        "lowercase",
+                        "trim"
+                    ]
+                },
+                "chosung_index_analyzer": {
+                    "type": "custom",
+                    "tokenizer": "keyword",
+                    "filter": [
+                        "lowercase",
+                        "trim",
+                        "edge_ngram_filter_chosung"
+                    ]
+                },
+                "chosung_search_analyzer": {
+                    "type": "custom",
+                    "tokenizer": "keyword",
+                    "filter": [
+                        "lowercase",
+                        "trim"
+                    ]
+                },
+                "edge_ngram_analyzer": {
+                    "type": "custom",
+                    "tokenizer": "edge_ngram_tokenizer",
+                    "filter": ["lowercase"]
+                }
+            },
+            "tokenizer": {
+                "edge_ngram_tokenizer": {
+                    "type": "edge_ngram",
+                    "token_chars": ["letter", "digit"]
+                }
+            }
+        }
+    }
+}

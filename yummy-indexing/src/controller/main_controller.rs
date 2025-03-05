@@ -79,6 +79,7 @@ impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
         match function_name {
             "store_static_index" => self.store_static_index(index_schedule).await?,
             "store_dynamic_index" => self.store_dynamic_index(index_schedule).await?,
+            "auto_complete_static_index" => self.auto_complete_static_index(index_schedule).await?,
             _ => {
                 return Err(anyhow!(
                     "[Error][main_task()] The mapped function does not exist.: {}",
@@ -218,6 +219,17 @@ impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
         Ok(())
     }
     
+    #[doc = "docs"]
+    pub async fn auto_complete_static_index(&self, index_schedule: IndexSchedules) -> Result<(), anyhow::Error> {
+
+        /* 현재기준 UTC 시간 */
+        let cur_utc_date: NaiveDateTime = get_current_utc_naive_datetime();
+        
+        
+
+        Ok(())
+    }
+
     #[doc = "사용자의 입력을 받아서 색인을 진행시켜주는 함수"]
     /// # Arguments
     /// * `index_schedules` - 인덱스 스케쥴 객체들
@@ -237,7 +249,7 @@ impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
             idx += 1;
             writeln!(stdout, "[{}] {:?} - {:?}", idx, index.index_name(), index.indexing_type).unwrap();
         }
-
+        
         loop {
             writeln!(stdout, "\n").unwrap();
             write!(stdout, "Please enter your number: ").unwrap();
