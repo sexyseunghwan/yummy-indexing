@@ -213,7 +213,8 @@ impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
         Ok(())
     }
     
-    #[doc = ""]
+
+    #[doc = "자동완성 키워드 정적색인 함수"]
     pub async fn auto_complete_static_index(&self, index_schedule: IndexSchedules) -> Result<(), anyhow::Error> {
 
         /* 현재기준 UTC 시간 */
