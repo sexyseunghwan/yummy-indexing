@@ -103,12 +103,15 @@ impl QueryService for QueryServicePub {
                 .select_only()
                 .columns([store::Column::Seq, store::Column::Name, store::Column::Type])
                 .expr_as(
-                    Expr::col((
-                        zero_possible_market::Entity,
-                        zero_possible_market::Column::Name,
-                    ))
-                    .is_not_null(),
-                    "zero_possible",
+                    Expr::case(
+                        Expr::col((zero_possible_market::Entity, zero_possible_market::Column::UseYn)).eq("N"), 
+                        false
+                    ).case(
+                        Expr::col((zero_possible_market::Entity, zero_possible_market::Column::Name)).is_not_null(),
+                        true
+                    )
+                    .finally(false),
+                    "zero_possible"
                 )
                 .column_as(store_location_info_tbl::Column::Address, "address")
                 .column_as(store_location_info_tbl::Column::Lat, "lat")
@@ -210,12 +213,15 @@ impl QueryService for QueryServicePub {
             .select_only()
             .columns([store::Column::Seq, store::Column::Name, store::Column::Type])
             .expr_as(
-                Expr::col((
-                    zero_possible_market::Entity,
-                    zero_possible_market::Column::Name,
-                ))
-                .is_not_null(),
-                "zero_possible",
+                Expr::case(
+                    Expr::col((zero_possible_market::Entity, zero_possible_market::Column::UseYn)).eq("N"), 
+                    false
+                ).case(
+                    Expr::col((zero_possible_market::Entity, zero_possible_market::Column::Name)).is_not_null(),
+                    true
+                )
+                .finally(false),
+                "zero_possible"
             )
             .column_as(store_location_info_tbl::Column::Address, "address")
             .column_as(store_location_info_tbl::Column::Lat, "lat")

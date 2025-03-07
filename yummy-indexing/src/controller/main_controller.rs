@@ -90,7 +90,7 @@ impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
         
         Ok(())
     }
-
+    
     #[doc = "Store 객체를 정적색인 해주는 함수"]
     /// # Arguments
     /// * `index_schedule` - 인덱스 스케쥴 객체
