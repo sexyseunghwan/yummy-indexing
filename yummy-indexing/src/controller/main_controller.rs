@@ -76,17 +76,20 @@ impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
     pub async fn main_task(&self, index_schedule: IndexSchedules) -> Result<(), anyhow::Error> {
         let function_name: &str = index_schedule.function_name().as_str();
 
-        match function_name {
-            "store_static_index" => self.store_static_index(index_schedule).await?,
-            "store_dynamic_index" => self.store_dynamic_index(index_schedule).await?,
-            "auto_complete_static_index" => self.auto_complete_static_index(index_schedule).await?,
-            _ => {
-                return Err(anyhow!(
-                    "[Error][main_task()] The mapped function does not exist.: {}",
-                    function_name
-                ))
-            }
-        }
+
+        self.query_service.get_store_types().await?;
+
+        // match function_name {
+        //     "store_static_index" => self.store_static_index(index_schedule).await?,
+        //     "store_dynamic_index" => self.store_dynamic_index(index_schedule).await?,
+        //     "auto_complete_static_index" => self.auto_complete_static_index(index_schedule).await?,
+        //     _ => {
+        //         return Err(anyhow!(
+        //             "[Error][main_task()] The mapped function does not exist.: {}",
+        //             function_name
+        //         ))
+        //     }
+        // }
         
         Ok(())
     }
@@ -115,6 +118,11 @@ impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
         let stores_distinct: Vec<DistinctStoreResult> = self
             .query_service
             .get_distinct_store_table(&stores, cur_utc_date)?;
+        
+        /* store 리스트와 대응되는 소비분류 데이터 가져오기 */
+        // let store_types_all = self
+        //     .query_service
+        //     .get_store_types()?;
 
         self.es_query_service
             .post_indexing_data_by_bulk_static::<DistinctStoreResult>(

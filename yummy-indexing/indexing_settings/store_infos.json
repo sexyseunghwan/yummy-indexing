@@ -83,7 +83,28 @@
       "lat": { "type": "double" },
       "lng": { "type": "double" },
       "zero_possible": { "type": "boolean" },
-      "recommend_names": { "type": "text", "fields": { "keyword": { "type": "keyword" } } }
+      "recommend_names": { "type": "text", "fields": { "keyword": { "type": "keyword" } } },
+	  "location_city": {
+		"type": "keyword"
+	  },
+	  "location_county": {
+		"type": "keyword"
+	  },
+	  "location_district": {
+		"type": "keyword"
+	  },
+	  "major_type_cd": {
+		"type": "integer"
+	  },
+	  "major_type_name": {
+		"type": "keyword"
+	  },
+	  "sub_type_cd": {
+		"type": "integer"
+	  },
+	  "sub_type_name": {
+		"type": "keyword"
+	  }
     }
   }
 }

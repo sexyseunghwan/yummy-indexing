@@ -3,14 +3,15 @@ use crate::common::*;
 use crate::configuration::index_schedules_config::*;
 
 use crate::models::store_to_elastic::*;
+use crate::models::store_types::*;
 
 use crate::repository::mysql_repository::*;
 
 use crate::utils_module::time_utils::*;
 
 use crate::entity::{
-    elastic_index_info_tbl, recommend_tbl, store, store_location_info_tbl, store_recommend_tbl,
-    zero_possible_market,
+    elastic_index_info_tbl, recommend_tbl, store, store_location_info_tbl, store_recommend_tbl, 
+    store_type_major, store_type_sub, zero_possible_market, store_type_link_tbl
 };
 
 pub trait QueryService {
@@ -52,6 +53,7 @@ pub trait QueryService {
         index_schedule: &IndexSchedules,
         new_datetime: NaiveDateTime,
     ) -> Result<(), anyhow::Error>;
+    async fn get_store_types(&self) -> Result<(), anyhow::Error>;
 }
 
 #[derive(Debug, new)]
@@ -117,6 +119,9 @@ impl QueryService for QueryServicePub {
                 .column_as(store_location_info_tbl::Column::Lat, "lat")
                 .column_as(store_location_info_tbl::Column::Lng, "lng")
                 .column_as(recommend_tbl::Column::RecommendName, "recommend_name")
+                .column_as(store_location_info_tbl::Column::LocationCity, "location_city")
+                .column_as(store_location_info_tbl::Column::LocationCounty, "location_county")
+                .column_as(store_location_info_tbl::Column::LocationDistrict, "location_district")
                 .filter(query_filter.clone());
 
             if let Some(seq) = last_seq {
@@ -170,6 +175,9 @@ impl QueryService for QueryServicePub {
                         store.lng,
                         store.zero_possible,
                         store.recommend_name.clone().map_or(vec![], |r| vec![r]),
+                        store.location_city.clone(),
+                        store.location_county.clone(),
+                        store.location_district.clone()
                     )
                 });
         }
@@ -227,14 +235,17 @@ impl QueryService for QueryServicePub {
             .column_as(store_location_info_tbl::Column::Lat, "lat")
             .column_as(store_location_info_tbl::Column::Lng, "lng")
             .column_as(recommend_tbl::Column::RecommendName, "recommend_name")
+            .column_as(store_location_info_tbl::Column::LocationCity, "location_city")
+            .column_as(store_location_info_tbl::Column::LocationCounty, "location_county")
+            .column_as(store_location_info_tbl::Column::LocationDistrict, "location_district")
             .filter(query_filter);
 
         let store_results: Vec<StoreResult> = query.into_model().all(db).await?;
 
         Ok(store_results)
     }
-
-    #[doc = "동적색인 - Create 단계 함수"]
+    
+    #[doc = "증분색인 - Create 단계 함수"]
     /// # Arguments
     /// * `recent_datetime` - 가장 최신 날짜데이터
     /// * `cur_utc_date` - 현재 날짜 데이터
@@ -288,7 +299,7 @@ impl QueryService for QueryServicePub {
         Ok(distinct_result)
     }
 
-    #[doc = "동적색인 - Update 단계 함수"]
+    #[doc = "증분색인 - Update 단계 함수"]
     /// # Arguments
     /// * `recent_datetime` - 가장 최신 날짜데이터
     /// * `cur_utc_date` - 현재 날짜 데이터
@@ -342,7 +353,7 @@ impl QueryService for QueryServicePub {
         Ok(distinct_result)
     }
 
-    #[doc = "동적색인 - Delete 단계 함수"]
+    #[doc = "증분색인 - Delete 단계 함수"]
     /// # Arguments
     /// * `recent_datetime` - 가장 최신 날짜데이터
     /// * `cur_utc_date` - 현재 날짜 데이터
@@ -469,4 +480,28 @@ impl QueryService for QueryServicePub {
 
         Ok(())
     }
+
+    #[doc = ""]
+    async fn get_store_types(&self) -> Result<(), anyhow::Error> {
+        
+        let db: &DatabaseConnection = establish_connection().await;
+        
+        let query: Select<store::Entity> = store::Entity::find()
+            .join(JoinType::InnerJoin, store::Relation::StoreTypeLinkTbl.def())
+            .join(JoinType::InnerJoin, store_type_link_tbl::Relation::StoreTypeSub.def())
+            .join(JoinType::InnerJoin, store_type_sub::Relation::StoreTypeMajor.def())
+            .select_only()
+            .columns([store::Column::Seq])
+            .column_as(store_type_sub::Column::SubType, "sub_type")
+            .column_as(store_type_major::Column::MajorType, "major_type");
+        
+        let store_types: Vec<StorTypesResult> = query.into_model().all(db).await?;
+
+        for elem in store_types {
+            println!("{:?}", elem);
+        }
+
+        Ok(())
+    }
+
 }

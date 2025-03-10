@@ -11,3 +11,6 @@ pub use super::store_recommend_tbl::Entity as StoreRecommendTbl;
 pub use super::users::Entity as Users;
 pub use super::zero_possible_market::Entity as ZeroPossibleMarket;
 pub use super::zero_possible_market_backup::Entity as ZeroPossibleMarketBackup;
+pub use super::store_type_link_tbl::Entity as StoreTypeLinkTbl;
+pub use super::store_type_major::Entity as StoreTypeMajor;
+pub use super::store_type_sub::Entity as StoreTypeSub;

@@ -13,6 +13,9 @@ pub struct StoreResult {
     pub lng: Decimal,
     pub zero_possible: bool,
     pub recommend_name: Option<String>,
+    pub location_city: Option<String>,
+    pub location_county: Option<String>,
+    pub location_district: Option<String>
 }
 
 #[doc = "Elasticsearch 와 mapping 할 구조체"]
@@ -27,4 +30,7 @@ pub struct DistinctStoreResult {
     pub lng: Decimal,
     pub zero_possible: bool,
     pub recommend_names: Vec<String>,
+    pub location_city: Option<String>,
+    pub location_county: Option<String>,
+    pub location_district: Option<String>
 }

@@ -13,3 +13,6 @@ pub mod store_recommend_tbl;
 pub mod users;
 pub mod zero_possible_market;
 pub mod zero_possible_market_backup;
+pub mod store_type_link_tbl;
+pub mod store_type_major;
+pub mod store_type_sub;
