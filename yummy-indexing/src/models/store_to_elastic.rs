@@ -19,7 +19,8 @@ pub struct StoreResult {
 }
 
 #[doc = "Elasticsearch 와 mapping 할 구조체"]
-#[derive(Debug, Serialize, new)]
+#[derive(Debug, Serialize, Setters, new)]
+#[getset(get = "pub", set = "pub")]
 pub struct DistinctStoreResult {
     pub timestamp: String,
     pub seq: i32,
@@ -32,5 +33,7 @@ pub struct DistinctStoreResult {
     pub recommend_names: Vec<String>,
     pub location_city: Option<String>,
     pub location_county: Option<String>,
-    pub location_district: Option<String>
+    pub location_district: Option<String>,
+    pub major_type: Vec<i32>,
+    pub sub_type: Vec<i32>
 }

@@ -6,6 +6,7 @@ use crate::services::query_service::*;
 use crate::configuration::{index_schedules_config::*, system_config::*};
 
 use crate::models::store_to_elastic::*;
+use crate::models::store_types::*;
 
 use crate::utils_module::time_utils::*;
 
@@ -76,20 +77,17 @@ impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
     pub async fn main_task(&self, index_schedule: IndexSchedules) -> Result<(), anyhow::Error> {
         let function_name: &str = index_schedule.function_name().as_str();
 
-
-        self.query_service.get_store_types().await?;
-
-        // match function_name {
-        //     "store_static_index" => self.store_static_index(index_schedule).await?,
-        //     "store_dynamic_index" => self.store_dynamic_index(index_schedule).await?,
-        //     "auto_complete_static_index" => self.auto_complete_static_index(index_schedule).await?,
-        //     _ => {
-        //         return Err(anyhow!(
-        //             "[Error][main_task()] The mapped function does not exist.: {}",
-        //             function_name
-        //         ))
-        //     }
-        // }
+        match function_name {
+            "store_static_index" => self.store_static_index(index_schedule).await?,
+            "store_dynamic_index" => self.store_dynamic_index(index_schedule).await?,
+            "auto_complete_static_index" => self.auto_complete_static_index(index_schedule).await?,
+            _ => {
+                return Err(anyhow!(
+                    "[Error][main_task()] The mapped function does not exist.: {}",
+                    function_name
+                ))
+            }
+        }
         
         Ok(())
     }
@@ -115,14 +113,34 @@ impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
             .await?;
 
         /* 중복을 제외한 store 리스트 */
-        let stores_distinct: Vec<DistinctStoreResult> = self
+        let mut stores_distinct: Vec<DistinctStoreResult> = self
             .query_service
             .get_distinct_store_table(&stores, cur_utc_date)?;
         
         /* store 리스트와 대응되는 소비분류 데이터 가져오기 */
-        // let store_types_all = self
-        //     .query_service
-        //     .get_store_types()?;
+        let store_types_all: StoreTypesMap = self
+            .query_service
+            .get_store_types()
+            .await?;
+        
+        let store_type_major_map: HashMap<i32, Vec<i32>> = store_types_all.store_type_major_map;
+        let store_type_sub_map: HashMap<i32, Vec<i32>> = store_types_all.store_type_sub_map;
+
+        for mut store_elem in stores_distinct {
+            let seq: i32 = store_elem.seq;
+            let major_vec: &Vec<i32> = match store_type_major_map.get(&seq) {
+                Some(major_vec) => major_vec,
+                None => continue
+            };
+
+            let sub_vec: &Vec<i32> = match store_type_sub_map.get(&seq) {
+                Some(sub_vec) => sub_vec,
+                None => continue
+            };
+
+            store_elem.set_major_type(major_vec.clone());
+            store_elem.set_sub_type(sub_vec.clone());
+        }
 
         self.es_query_service
             .post_indexing_data_by_bulk_static::<DistinctStoreResult>(

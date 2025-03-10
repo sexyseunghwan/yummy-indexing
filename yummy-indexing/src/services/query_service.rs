@@ -53,7 +53,7 @@ pub trait QueryService {
         index_schedule: &IndexSchedules,
         new_datetime: NaiveDateTime,
     ) -> Result<(), anyhow::Error>;
-    async fn get_store_types(&self) -> Result<(), anyhow::Error>;
+    async fn get_store_types(&self) -> Result<StoreTypesMap, anyhow::Error>;
 }
 
 #[derive(Debug, new)]
@@ -177,7 +177,9 @@ impl QueryService for QueryServicePub {
                         store.recommend_name.clone().map_or(vec![], |r| vec![r]),
                         store.location_city.clone(),
                         store.location_county.clone(),
-                        store.location_district.clone()
+                        store.location_district.clone(),
+                        Vec::new(),
+                        Vec::new()
                     )
                 });
         }
@@ -421,18 +423,6 @@ impl QueryService for QueryServicePub {
 
         let db: &DatabaseConnection = establish_connection().await;
 
-        // let filter: Condition = Condition::all().add(
-        //     Expr::col((
-        //         elastic_index_info_tbl::Entity,
-        //         elastic_index_info_tbl::Column::IndexName,
-        //     ))
-        //     .eq(index_name),
-        // );
-
-        // let filter: Condition = Condition::all().add(
-        //     elastic_index_info_tbl::Column::IndexName.eq(index_name),
-        // );
-
         let query: Select<elastic_index_info_tbl::Entity> = elastic_index_info_tbl::Entity::find()
             .filter(elastic_index_info_tbl::Column::IndexName.eq(index_name));
 
@@ -481,8 +471,8 @@ impl QueryService for QueryServicePub {
         Ok(())
     }
 
-    #[doc = ""]
-    async fn get_store_types(&self) -> Result<(), anyhow::Error> {
+    #[doc = "음식점 정보와 맵핑되는 대분류, 소분류 정보를 모두 가져와 준다."]
+    async fn get_store_types(&self) -> Result<StoreTypesMap, anyhow::Error> {
         
         let db: &DatabaseConnection = establish_connection().await;
         
@@ -495,13 +485,53 @@ impl QueryService for QueryServicePub {
             .column_as(store_type_sub::Column::SubType, "sub_type")
             .column_as(store_type_major::Column::MajorType, "major_type");
         
-        let store_types: Vec<StorTypesResult> = query.into_model().all(db).await?;
+        let store_types_result: Vec<StoreTypesResult> = query.into_model().all(db).await?;
+        
+        let mut store_type_major_map: HashMap<i32, Vec<i32>> = HashMap::new();
+        let mut store_type_sub_map: HashMap<i32, Vec<i32>> = HashMap::new();
 
-        for elem in store_types {
-            println!("{:?}", elem);
+        /* 중복체크를 위한 HashSet */
+        let mut major_seen: HashMap<i32, HashSet<i32>> = HashMap::new();
+        let mut sub_seen: HashMap<i32, HashSet<i32>> = HashMap::new();
+        
+        for store in &store_types_result {
+
+            store_type_major_map
+                .entry(store.seq)
+                .or_insert_with(Vec::new);
+
+            major_seen
+                .entry(store.seq)
+                .or_insert_with(HashSet::new);
+
+            if let Some(major_types) = store_type_major_map.get_mut(&store.seq) {
+                if let Some(major_set) = major_seen.get_mut(&store.seq) {
+                    if major_set.insert(store.major_type) {
+                        major_types.push(store.major_type);
+                    }
+                }
+            }
+
+            store_type_sub_map
+                .entry(store.seq)
+                .or_insert_with(Vec::new);
+
+            sub_seen
+                .entry(store.seq)
+                .or_insert_with(HashSet::new);
+
+            if let Some(sub_types) = store_type_sub_map.get_mut(&store.seq) {
+                if let Some(sub_set) = sub_seen.get_mut(&store.seq) {
+                    if sub_set.insert(store.sub_type) {
+                        sub_types.push(store.sub_type);
+                    }
+                }
+            }
         }
 
-        Ok(())
+        let store_types_map: StoreTypesMap = StoreTypesMap::new(store_type_major_map, store_type_sub_map);
+        
+        Ok(store_types_map)
     }
 
 }
