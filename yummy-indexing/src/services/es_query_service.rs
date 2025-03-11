@@ -91,7 +91,7 @@ impl EsQueryService for EsQueryServicePub {
         };
 
         es_conn.create_index(&new_index_name, &json_body).await?;
-        
+
         /* Bulk post the data to the index above at once. */
         es_conn
             .bulk_indexing_query(&new_index_name, data, es_batch_size)
@@ -105,7 +105,6 @@ impl EsQueryService for EsQueryServicePub {
                 false
             }
         };
-
 
         if index_exists_yn {
             /* 기존 인덱스가 존재하는 경우 */
@@ -265,10 +264,12 @@ impl EsQueryService for EsQueryServicePub {
                 .ok_or_else(|| anyhow!("[Error][delete_index()] There was a problem converting data for 'unique_value'"))?
                 .try_into()?;
 
+            println!("unique_value: {}", unique_value);
+
             /* 기존 문서 삭제 */
-            es_conn
-                .delete_query_where_field(index_name, unique_field_name, unique_value)
-                .await?;
+            // es_conn
+            //     .delete_query_where_field(index_name, unique_field_name, unique_value)
+            //     .await?;
         }
 
         Ok(())

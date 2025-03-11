@@ -1,10 +1,10 @@
 pub use std::{
-    collections::{HashMap, VecDeque, HashSet},
+    collections::{HashMap, HashSet, VecDeque},
     env,
     fmt::Debug,
     fs::File,
     future::Future,
-    io::{BufReader, Write, self},
+    io::{self, BufReader, Write},
     ops::Deref, //time::Duration,
     str::FromStr,
     sync::Arc,
@@ -18,7 +18,6 @@ pub use tokio::{
     sync::{Mutex, MutexGuard, OnceCell},
     time::{Duration, Interval},
 };
-
 
 pub use log::{error, info, warn};
 
@@ -76,8 +75,8 @@ pub use kafka::producer::{Producer, Record as KafkaRecord, RequiredAcks};
 
 pub use sea_orm::{
     prelude::{Decimal, Expr},
-    ActiveModelBehavior, ColumnTrait, Condition, Database, DatabaseConnection, EntityTrait, FromQueryResult, JoinType, QueryFilter,
-    QueryOrder, QuerySelect, RelationTrait, Select,
+    ActiveModelBehavior, ColumnTrait, Condition, Database, DatabaseConnection, EntityTrait,
+    FromQueryResult, JoinType, QueryFilter, QueryOrder, QuerySelect, RelationTrait, Select,
 };
 
 // pub use diesel::{

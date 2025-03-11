@@ -2,9 +2,9 @@
 
 use sea_orm::entity::prelude::*;
 
-use crate::entity::store_type_sub;
-use crate::entity::store_type_link_tbl;
 use crate::entity::store;
+use crate::entity::store_type_link_tbl;
+use crate::entity::store_type_sub;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]
 #[sea_orm(table_name = "store_type_link_tbl")]
@@ -32,7 +32,7 @@ pub enum Relation {
         from = "Column::SubType",
         to = "super::store_type_sub::Column::SubType"
     )]
-    StoreTypeSub
+    StoreTypeSub,
 }
 
 impl Related<store::Entity> for store_type_link_tbl::Entity {

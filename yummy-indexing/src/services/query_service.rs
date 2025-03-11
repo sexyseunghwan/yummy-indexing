@@ -10,14 +10,20 @@ use crate::repository::mysql_repository::*;
 use crate::utils_module::time_utils::*;
 
 use crate::entity::{
-    elastic_index_info_tbl, recommend_tbl, store, store_location_info_tbl, store_recommend_tbl, 
-    store_type_major, store_type_sub, zero_possible_market, store_type_link_tbl
+    elastic_index_info_tbl, recommend_tbl, store, store_location_info_tbl, store_recommend_tbl,
+    store_type_link_tbl, store_type_major, store_type_sub, zero_possible_market,
 };
 
 pub trait QueryService {
     async fn get_all_store_table(
         &self,
         index_schedule: &IndexSchedules,
+    ) -> Result<Vec<StoreResult>, anyhow::Error>;
+    async fn get_store_table_by_match(
+        &self,
+        index_schedule: &IndexSchedules,
+        indexing_type: &str,
+        recent_datetime: NaiveDateTime
     ) -> Result<Vec<StoreResult>, anyhow::Error>;
     fn get_distinct_store_table(
         &self,
@@ -40,6 +46,11 @@ pub trait QueryService {
         cur_utc_date: NaiveDateTime,
     ) -> Result<Vec<DistinctStoreResult>, anyhow::Error>;
     async fn get_dynamic_delete_store_index(
+        &self,
+        recent_datetime: NaiveDateTime,
+        cur_utc_date: NaiveDateTime,
+    ) -> Result<Vec<DistinctStoreResult>, anyhow::Error>;
+    async fn get_dynamic_delete_store_index_new(
         &self,
         recent_datetime: NaiveDateTime,
         cur_utc_date: NaiveDateTime,
@@ -106,22 +117,40 @@ impl QueryService for QueryServicePub {
                 .columns([store::Column::Seq, store::Column::Name, store::Column::Type])
                 .expr_as(
                     Expr::case(
-                        Expr::col((zero_possible_market::Entity, zero_possible_market::Column::UseYn)).eq("N"), 
-                        false
-                    ).case(
-                        Expr::col((zero_possible_market::Entity, zero_possible_market::Column::Name)).is_not_null(),
-                        true
+                        Expr::col((
+                            zero_possible_market::Entity,
+                            zero_possible_market::Column::UseYn,
+                        ))
+                        .eq("N"),
+                        false,
+                    )
+                    .case(
+                        Expr::col((
+                            zero_possible_market::Entity,
+                            zero_possible_market::Column::Name,
+                        ))
+                        .is_not_null(),
+                        true,
                     )
                     .finally(false),
-                    "zero_possible"
+                    "zero_possible",
                 )
                 .column_as(store_location_info_tbl::Column::Address, "address")
                 .column_as(store_location_info_tbl::Column::Lat, "lat")
                 .column_as(store_location_info_tbl::Column::Lng, "lng")
                 .column_as(recommend_tbl::Column::RecommendName, "recommend_name")
-                .column_as(store_location_info_tbl::Column::LocationCity, "location_city")
-                .column_as(store_location_info_tbl::Column::LocationCounty, "location_county")
-                .column_as(store_location_info_tbl::Column::LocationDistrict, "location_district")
+                .column_as(
+                    store_location_info_tbl::Column::LocationCity,
+                    "location_city",
+                )
+                .column_as(
+                    store_location_info_tbl::Column::LocationCounty,
+                    "location_county",
+                )
+                .column_as(
+                    store_location_info_tbl::Column::LocationDistrict,
+                    "location_district",
+                )
                 .filter(query_filter.clone());
 
             if let Some(seq) = last_seq {
@@ -139,6 +168,177 @@ impl QueryService for QueryServicePub {
         }
 
         Ok(total_store_list)
+    }
+
+    #[doc = ""]
+    /// # Arguments
+    /// * `index_schedule` - index_schedule 정보
+    /// * `indexing_type` - 색인 타입: 정적색인인지 동적색인인지
+    /// 
+    /// # Returns
+    /// * Result<Vec<StoreResult>, anyhow::Error>
+    async fn get_store_table_by_match(
+        &self,
+        index_schedule: &IndexSchedules,
+        indexing_type: &str,
+        recent_datetime: NaiveDateTime
+    ) -> Result<Vec<StoreResult>, anyhow::Error> {
+
+        let batch_size: usize = *index_schedule.es_batch_size();
+
+        let db: &DatabaseConnection = establish_connection().await;
+
+        let mut total_store_list: Vec<StoreResult> = Vec::new();
+        let mut last_seq: Option<i32> = None;
+
+        let cur_utc_date: NaiveDateTime = get_current_utc_naive_datetime();
+
+        let query_filter: Condition = if indexing_type == "static" {
+            Condition::any().add(Expr::col((store::Entity, store::Column::UseYn)).eq("Y"))
+        } else {
+            Condition::all()
+                .add(Expr::col((store::Entity, store::Column::UseYn)).eq("Y"))
+                .add(
+                    Condition::any()
+                    .add(Expr::col((store::Entity, store::Column::ChgDt)).gt(recent_datetime))
+                    .add(Expr::col((store::Entity, store::Column::RegDt)).gt(recent_datetime))
+                    .add(
+                        Expr::col((
+                            zero_possible_market::Entity,
+                            zero_possible_market::Column::ChgDt,
+                        ))
+                        .gt(recent_datetime),
+                    )
+                    .add(
+                        Expr::col((
+                            zero_possible_market::Entity,
+                            zero_possible_market::Column::RegDt,
+                        ))
+                        .gt(recent_datetime),
+                    )
+                    .add(
+                        Expr::col((
+                            store_recommend_tbl::Entity,
+                            store_recommend_tbl::Column::ChgDt,
+                        ))
+                        .gt(recent_datetime),
+                    )
+                    .add(
+                        Expr::col((
+                            store_recommend_tbl::Entity,
+                            store_recommend_tbl::Column::RegDt,
+                        ))
+                        .gt(recent_datetime),
+                    )
+                    .add(
+                        Expr::col((
+                            store_location_info_tbl::Entity,
+                            store_location_info_tbl::Column::ChgDt,
+                        ))
+                        .gt(recent_datetime),
+                    )
+                    .add(
+                        Expr::col((
+                            store_location_info_tbl::Entity,
+                            store_location_info_tbl::Column::RegDt,
+                        ))
+                        .gt(recent_datetime),
+                    )
+                    .add(
+                        Expr::col((
+                            store_type_link_tbl::Entity,
+                            store_type_link_tbl::Column::ChgDt,
+                        ))
+                        .gt(recent_datetime),
+                    )
+                    .add(
+                        Expr::col((
+                            store_type_link_tbl::Entity,
+                            store_type_link_tbl::Column::RegDt,
+                        ))
+                        .gt(recent_datetime),
+                    )
+                )
+        };
+            
+
+        loop {
+            let mut query: Select<store::Entity> = store::Entity::find()
+                .inner_join(store_type_link_tbl::Entity)
+                .inner_join(store_location_info_tbl::Entity)
+                .left_join(zero_possible_market::Entity)
+                .left_join(store_recommend_tbl::Entity)
+                .join(
+                    JoinType::LeftJoin,
+                    store_recommend_tbl::Relation::RecommendTbl
+                        .def()
+                        .on_condition(move |_r, _| {
+                            Condition::all()
+                                .add(Expr::col(recommend_tbl::Column::RecommendYn).eq("Y"))
+                                .add(
+                                    Expr::col(store_recommend_tbl::Column::RecommendEndDt)
+                                        .gt(cur_utc_date),
+                                )
+                        }),
+                )
+                .order_by_asc(store::Column::Seq)
+                .limit(batch_size as u64)
+                .select_only()
+                .columns([store::Column::Seq, store::Column::Name, store::Column::Type])
+                .expr_as(
+                    Expr::case(
+                        Expr::col((
+                            zero_possible_market::Entity,
+                            zero_possible_market::Column::UseYn,
+                        ))
+                        .eq("N"),
+                        false,
+                    )
+                    .case(
+                        Expr::col((
+                            zero_possible_market::Entity,
+                            zero_possible_market::Column::Name,
+                        ))
+                        .is_not_null(),
+                        true,
+                    )
+                    .finally(false),
+                    "zero_possible",
+                )
+                .column_as(store_location_info_tbl::Column::Address, "address")
+                .column_as(store_location_info_tbl::Column::Lat, "lat")
+                .column_as(store_location_info_tbl::Column::Lng, "lng")
+                .column_as(recommend_tbl::Column::RecommendName, "recommend_name")
+                .column_as(
+                    store_location_info_tbl::Column::LocationCity,
+                    "location_city",
+                )
+                .column_as(
+                    store_location_info_tbl::Column::LocationCounty,
+                    "location_county",
+                )
+                .column_as(
+                    store_location_info_tbl::Column::LocationDistrict,
+                    "location_district",
+                )
+                .filter(query_filter.clone());
+
+            if let Some(seq) = last_seq {
+                query = query.filter(store::Column::Seq.gt(seq)); /* `seq`가 마지막 값보다 큰 데이터 가져오기 */
+            }
+
+            let mut store_results: Vec<StoreResult> = query.into_model().all(db).await?;
+
+            if store_results.is_empty() {
+                break;
+            }
+
+            total_store_list.append(&mut store_results);
+            last_seq = total_store_list.last().map(|s| s.seq);
+        }
+
+        Ok(total_store_list)
+
     }
 
     #[doc = "색인할 Store 정보를 조회해주는 함수 -> 중복 제거"]
@@ -179,7 +379,7 @@ impl QueryService for QueryServicePub {
                         store.location_county.clone(),
                         store.location_district.clone(),
                         Vec::new(),
-                        Vec::new()
+                        Vec::new(),
                     )
                 });
         }
@@ -204,6 +404,7 @@ impl QueryService for QueryServicePub {
         let db: &DatabaseConnection = establish_connection().await;
 
         let query: Select<store::Entity> = store::Entity::find()
+            .inner_join(store_type_link_tbl::Entity)
             .inner_join(store_location_info_tbl::Entity)
             .left_join(zero_possible_market::Entity)
             .left_join(store_recommend_tbl::Entity)
@@ -224,29 +425,47 @@ impl QueryService for QueryServicePub {
             .columns([store::Column::Seq, store::Column::Name, store::Column::Type])
             .expr_as(
                 Expr::case(
-                    Expr::col((zero_possible_market::Entity, zero_possible_market::Column::UseYn)).eq("N"), 
-                    false
-                ).case(
-                    Expr::col((zero_possible_market::Entity, zero_possible_market::Column::Name)).is_not_null(),
-                    true
+                    Expr::col((
+                        zero_possible_market::Entity,
+                        zero_possible_market::Column::UseYn,
+                    ))
+                    .eq("N"),
+                    false,
+                )
+                .case(
+                    Expr::col((
+                        zero_possible_market::Entity,
+                        zero_possible_market::Column::Name,
+                    ))
+                    .is_not_null(),
+                    true,
                 )
                 .finally(false),
-                "zero_possible"
+                "zero_possible",
             )
             .column_as(store_location_info_tbl::Column::Address, "address")
             .column_as(store_location_info_tbl::Column::Lat, "lat")
             .column_as(store_location_info_tbl::Column::Lng, "lng")
             .column_as(recommend_tbl::Column::RecommendName, "recommend_name")
-            .column_as(store_location_info_tbl::Column::LocationCity, "location_city")
-            .column_as(store_location_info_tbl::Column::LocationCounty, "location_county")
-            .column_as(store_location_info_tbl::Column::LocationDistrict, "location_district")
+            .column_as(
+                store_location_info_tbl::Column::LocationCity,
+                "location_city",
+            )
+            .column_as(
+                store_location_info_tbl::Column::LocationCounty,
+                "location_county",
+            )
+            .column_as(
+                store_location_info_tbl::Column::LocationDistrict,
+                "location_district",
+            )
             .filter(query_filter);
 
         let store_results: Vec<StoreResult> = query.into_model().all(db).await?;
 
         Ok(store_results)
     }
-    
+
     #[doc = "증분색인 - Create 단계 함수"]
     /// # Arguments
     /// * `recent_datetime` - 가장 최신 날짜데이터
@@ -409,6 +628,90 @@ impl QueryService for QueryServicePub {
         Ok(distinct_result)
     }
 
+    #[doc = "증분색인 - Delete 단계 함수(신버전)"]
+    /// # Arguments
+    /// * `recent_datetime` - 가장 최신 날짜데이터
+    /// * `cur_utc_date` - 현재 날짜 데이터
+    ///
+    /// # Returns
+    /// * Result<Vec<DistinctStoreResult>, anyhow::Error>  
+    async fn get_dynamic_delete_store_index_new(
+        &self,
+        recent_datetime: NaiveDateTime,
+        cur_utc_date: NaiveDateTime,
+    ) -> Result<Vec<DistinctStoreResult>, anyhow::Error> {
+        let delete_filter: Condition = Condition::all().add(
+            Condition::any()
+                .add(Expr::col((store::Entity, store::Column::ChgDt)).gt(recent_datetime))
+                .add(Expr::col((store::Entity, store::Column::RegDt)).gt(recent_datetime))
+                .add(
+                    Expr::col((
+                        zero_possible_market::Entity,
+                        zero_possible_market::Column::ChgDt,
+                    ))
+                    .gt(recent_datetime),
+                )
+                .add(
+                    Expr::col((
+                        zero_possible_market::Entity,
+                        zero_possible_market::Column::RegDt,
+                    ))
+                    .gt(recent_datetime),
+                )
+                .add(
+                    Expr::col((
+                        store_recommend_tbl::Entity,
+                        store_recommend_tbl::Column::ChgDt,
+                    ))
+                    .gt(recent_datetime),
+                )
+                .add(
+                    Expr::col((
+                        store_recommend_tbl::Entity,
+                        store_recommend_tbl::Column::RegDt,
+                    ))
+                    .gt(recent_datetime),
+                )
+                .add(
+                    Expr::col((
+                        store_location_info_tbl::Entity,
+                        store_location_info_tbl::Column::ChgDt,
+                    ))
+                    .gt(recent_datetime),
+                )
+                .add(
+                    Expr::col((
+                        store_location_info_tbl::Entity,
+                        store_location_info_tbl::Column::RegDt,
+                    ))
+                    .gt(recent_datetime),
+                )
+                .add(
+                    Expr::col((
+                        store_type_link_tbl::Entity,
+                        store_type_link_tbl::Column::ChgDt,
+                    ))
+                    .gt(recent_datetime),
+                )
+                .add(
+                    Expr::col((
+                        store_type_link_tbl::Entity,
+                        store_type_link_tbl::Column::RegDt,
+                    ))
+                    .gt(recent_datetime),
+                ),
+        );
+        
+        let stores: Vec<StoreResult> = self
+            .get_changed_store_table(recent_datetime, delete_filter)
+            .await?;
+
+        let distinct_result: Vec<DistinctStoreResult> =
+            self.get_distinct_store_table(&stores, cur_utc_date)?;
+
+        Ok(distinct_result)
+    }
+
     #[doc = "특정 인덱스에서 가장 최근에 색인된 날짜/시간 정보를 가져와주는 함수"]
     /// # Arguments
     /// * `index_schedule` - 인덱스 스케쥴 정보
@@ -433,7 +736,7 @@ impl QueryService for QueryServicePub {
                 "[Error][get_recent_date_from_elastic_index_info()] query_results is EMPTY"
             ));
         }
-        
+
         let recent_datetime: NaiveDateTime = 
             query_results
                 .get(0)
@@ -473,36 +776,38 @@ impl QueryService for QueryServicePub {
 
     #[doc = "음식점 정보와 맵핑되는 대분류, 소분류 정보를 모두 가져와 준다."]
     async fn get_store_types(&self) -> Result<StoreTypesMap, anyhow::Error> {
-        
         let db: &DatabaseConnection = establish_connection().await;
-        
+
         let query: Select<store::Entity> = store::Entity::find()
             .join(JoinType::InnerJoin, store::Relation::StoreTypeLinkTbl.def())
-            .join(JoinType::InnerJoin, store_type_link_tbl::Relation::StoreTypeSub.def())
-            .join(JoinType::InnerJoin, store_type_sub::Relation::StoreTypeMajor.def())
+            .join(
+                JoinType::InnerJoin,
+                store_type_link_tbl::Relation::StoreTypeSub.def(),
+            )
+            .join(
+                JoinType::InnerJoin,
+                store_type_sub::Relation::StoreTypeMajor.def(),
+            )
             .select_only()
             .columns([store::Column::Seq])
             .column_as(store_type_sub::Column::SubType, "sub_type")
             .column_as(store_type_major::Column::MajorType, "major_type");
-        
+
         let store_types_result: Vec<StoreTypesResult> = query.into_model().all(db).await?;
-        
+
         let mut store_type_major_map: HashMap<i32, Vec<i32>> = HashMap::new();
         let mut store_type_sub_map: HashMap<i32, Vec<i32>> = HashMap::new();
 
         /* 중복체크를 위한 HashSet */
         let mut major_seen: HashMap<i32, HashSet<i32>> = HashMap::new();
         let mut sub_seen: HashMap<i32, HashSet<i32>> = HashMap::new();
-        
-        for store in &store_types_result {
 
+        for store in &store_types_result {
             store_type_major_map
                 .entry(store.seq)
                 .or_insert_with(Vec::new);
 
-            major_seen
-                .entry(store.seq)
-                .or_insert_with(HashSet::new);
+            major_seen.entry(store.seq).or_insert_with(HashSet::new);
 
             if let Some(major_types) = store_type_major_map.get_mut(&store.seq) {
                 if let Some(major_set) = major_seen.get_mut(&store.seq) {
@@ -512,13 +817,9 @@ impl QueryService for QueryServicePub {
                 }
             }
 
-            store_type_sub_map
-                .entry(store.seq)
-                .or_insert_with(Vec::new);
+            store_type_sub_map.entry(store.seq).or_insert_with(Vec::new);
 
-            sub_seen
-                .entry(store.seq)
-                .or_insert_with(HashSet::new);
+            sub_seen.entry(store.seq).or_insert_with(HashSet::new);
 
             if let Some(sub_types) = store_type_sub_map.get_mut(&store.seq) {
                 if let Some(sub_set) = sub_seen.get_mut(&store.seq) {
@@ -529,9 +830,9 @@ impl QueryService for QueryServicePub {
             }
         }
 
-        let store_types_map: StoreTypesMap = StoreTypesMap::new(store_type_major_map, store_type_sub_map);
-        
+        let store_types_map: StoreTypesMap =
+            StoreTypesMap::new(store_type_major_map, store_type_sub_map);
+
         Ok(store_types_map)
     }
-
 }

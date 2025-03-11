@@ -2,9 +2,9 @@
 
 use sea_orm::entity::prelude::*;
 
+use super::store_type_link_tbl;
 use super::store_type_major;
 use super::store_type_sub;
-use super::store_type_link_tbl;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]
 #[sea_orm(table_name = "store_type_sub")]
@@ -16,7 +16,7 @@ pub struct Model {
     pub reg_dt: DateTime,
     pub chg_dt: Option<DateTime>,
     pub reg_id: String,
-    pub chg_id: Option<String>
+    pub chg_id: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -28,7 +28,7 @@ pub enum Relation {
     )]
     StoreTypeMajor,
     #[sea_orm(has_many = "super::store_type_link_tbl::Entity")]
-    StoreTypeLinkTbl
+    StoreTypeLinkTbl,
 }
 
 impl Related<store_type_major::Entity> for store_type_sub::Entity {
@@ -42,6 +42,5 @@ impl Related<store_type_link_tbl::Entity> for store_type_sub::Entity {
         Relation::StoreTypeLinkTbl.def()
     }
 }
-
 
 impl ActiveModelBehavior for ActiveModel {}

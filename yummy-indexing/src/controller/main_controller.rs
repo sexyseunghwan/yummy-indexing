@@ -88,10 +88,10 @@ impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
                 ))
             }
         }
-        
+
         Ok(())
     }
-    
+
     #[doc = "Store 객체를 정적색인 해주는 함수"]
     /// # Arguments
     /// * `index_schedule` - 인덱스 스케쥴 객체
@@ -102,7 +102,6 @@ impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
         &self,
         index_schedule: IndexSchedules,
     ) -> Result<(), anyhow::Error> {
-
         /* 현재기준 UTC 시간 */
         let cur_utc_date: NaiveDateTime = get_current_utc_naive_datetime();
 
@@ -116,26 +115,23 @@ impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
         let mut stores_distinct: Vec<DistinctStoreResult> = self
             .query_service
             .get_distinct_store_table(&stores, cur_utc_date)?;
-        
+
         /* store 리스트와 대응되는 소비분류 데이터 가져오기 */
-        let store_types_all: StoreTypesMap = self
-            .query_service
-            .get_store_types()
-            .await?;
-        
+        let store_types_all: StoreTypesMap = self.query_service.get_store_types().await?;
+
         let store_type_major_map: HashMap<i32, Vec<i32>> = store_types_all.store_type_major_map;
         let store_type_sub_map: HashMap<i32, Vec<i32>> = store_types_all.store_type_sub_map;
 
-        for mut store_elem in stores_distinct {
+        for store_elem in &mut stores_distinct {
             let seq: i32 = store_elem.seq;
             let major_vec: &Vec<i32> = match store_type_major_map.get(&seq) {
                 Some(major_vec) => major_vec,
-                None => continue
+                None => continue,
             };
 
             let sub_vec: &Vec<i32> = match store_type_sub_map.get(&seq) {
                 Some(sub_vec) => sub_vec,
-                None => continue
+                None => continue,
             };
 
             store_elem.set_major_type(major_vec.clone());
@@ -148,7 +144,7 @@ impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
                 &stores_distinct,
             )
             .await?;
-            
+
         /* 색인시간 최신화 */
         self.query_service
             .update_recent_date_to_elastic_index_info(&index_schedule, cur_utc_date)
@@ -177,76 +173,109 @@ impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
             .get_recent_date_from_elastic_index_info(&index_schedule)
             .await?;
 
-        /* 증분색인은 Create -> Update -> Delete 세단계로 나눠준다. */
-        /* 1. Create */
-        let create_list: Vec<DistinctStoreResult> = self
-            .query_service
-            .get_dynamic_create_store_index(recent_index_datetime, cur_utc_date)
-            .await?;
+        /*
+            증분색인은 Delete -> Create 로 나눔
+            일단 수정되거나 새로 등록된 데이터를 기준으로 하는 상점 데이터를 모두 지워준다.
+            그 다음 Create 를 사용해서 update,create 된 모든 데이터를 실제로 색인해준다.
+        */
 
-        if !create_list.is_empty() {
-            self.es_query_service
-                .post_indexing_data_by_bulk_dynamic::<DistinctStoreResult>(
-                    &index_schedule,
-                    &create_list,
-                )
-                .await
-                .map_err(|e| {
-                    anyhow!(
-                        "[Error][store_dynamic_index()] Dynamic Index Failed (Create) : {:?}",
-                        e
-                    )
-                })?;
-        }
-
-        info!("Dynamic Create Indexing: {}", create_list.len());
-
-        /* 2. Update */
-        let update_list: Vec<DistinctStoreResult> = self
-            .query_service
-            .get_dynamic_update_store_index(recent_index_datetime, cur_utc_date)
-            .await?;
-
-        if !update_list.is_empty() {
-            self.es_query_service
-                .update_index(&index_schedule, &update_list, "seq")
-                .await?;
-        }
-
-        info!("Dynamic Update Indexing: {}", update_list.len());
-
-        /* 3. Delete */
+        /* 1. Delete */
         let delete_list: Vec<DistinctStoreResult> = self
             .query_service
-            .get_dynamic_delete_store_index(recent_index_datetime, cur_utc_date)
+            .get_dynamic_delete_store_index_new(recent_index_datetime, cur_utc_date)
+            .await?;
+        
+        for elem in &delete_list {
+            println!("{:?}", elem);
+        }
+        
+        // if !delete_list.is_empty() {
+        //     self.es_query_service
+        //         .delete_index(&index_schedule, &delete_list, "seq")
+        //         .await?;
+        // }
+        
+        
+        /* 2. Create */
+        let create_list: Vec<StoreResult> = self
+            .query_service
+            .get_store_table_by_match(&index_schedule, "dynamic", recent_index_datetime)
             .await?;
 
-        if !delete_list.is_empty() {
-            self.es_query_service
-                .delete_index(&index_schedule, &delete_list, "seq")
-                .await?;
+        for elem in &create_list {
+            println!("create_list: {:?}", elem);
         }
+        
+        
+        /* 증분색인은 Create -> Update -> Delete 세단계로 나눠준다. */
+        /* 1. Create */
+        // let create_list: Vec<DistinctStoreResult> = self
+        //     .query_service
+        //     .get_dynamic_create_store_index(recent_index_datetime, cur_utc_date)
+        //     .await?;
 
-        info!("Dynamic Delete Indexing: {}", delete_list.len());
+        // if !create_list.is_empty() {
+        //     self.es_query_service
+        //         .post_indexing_data_by_bulk_dynamic::<DistinctStoreResult>(
+        //             &index_schedule,
+        //             &create_list,
+        //         )
+        //         .await
+        //         .map_err(|e| {
+        //             anyhow!(
+        //                 "[Error][store_dynamic_index()] Dynamic Index Failed (Create) : {:?}",
+        //                 e
+        //             )
+        //         })?;
+        // }
 
-        if !create_list.is_empty() || !update_list.is_empty() || !delete_list.is_empty() {
-            /* 색인시간 최신화 */
-            self.query_service
-                .update_recent_date_to_elastic_index_info(&index_schedule, cur_utc_date)
-                .await?;
-        }
+        // info!("Dynamic Create Indexing: {}", create_list.len());
+
+        // /* 2. Update */
+        // let update_list: Vec<DistinctStoreResult> = self
+        //     .query_service
+        //     .get_dynamic_update_store_index(recent_index_datetime, cur_utc_date)
+        //     .await?;
+
+        // if !update_list.is_empty() {
+        //     self.es_query_service
+        //         .update_index(&index_schedule, &update_list, "seq")
+        //         .await?;
+        // }
+
+        // info!("Dynamic Update Indexing: {}", update_list.len());
+
+        // /* 3. Delete */
+        // let delete_list: Vec<DistinctStoreResult> = self
+        //     .query_service
+        //     .get_dynamic_delete_store_index(recent_index_datetime, cur_utc_date)
+        //     .await?;
+
+        // if !delete_list.is_empty() {
+        //     self.es_query_service
+        //         .delete_index(&index_schedule, &delete_list, "seq")
+        //         .await?;
+        // }
+
+        // info!("Dynamic Delete Indexing: {}", delete_list.len());
+
+        // if !create_list.is_empty() || !update_list.is_empty() || !delete_list.is_empty() {
+        //     /* 색인시간 최신화 */
+        //     self.query_service
+        //         .update_recent_date_to_elastic_index_info(&index_schedule, cur_utc_date)
+        //         .await?;
+        // }
 
         Ok(())
     }
-    
 
     #[doc = "자동완성 키워드 정적색인 함수"]
-    pub async fn auto_complete_static_index(&self, index_schedule: IndexSchedules) -> Result<(), anyhow::Error> {
-
+    pub async fn auto_complete_static_index(
+        &self,
+        index_schedule: IndexSchedules,
+    ) -> Result<(), anyhow::Error> {
         /* 현재기준 UTC 시간 */
         let cur_utc_date: NaiveDateTime = get_current_utc_naive_datetime();
-        
-        
 
         Ok(())
     }
@@ -257,32 +286,48 @@ impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
     ///
     /// # Returns
     /// * Result<(), anyhow::Error>
-    pub async fn cli_indexing_task(&self, index_schedules: IndexSchedulesConfig) -> Result<(), anyhow::Error> {
-        
-        let mut stdout: io::Stdout = io::stdout();         
-        
+    pub async fn cli_indexing_task(
+        &self,
+        index_schedules: IndexSchedulesConfig,
+    ) -> Result<(), anyhow::Error> {
+        let mut stdout: io::Stdout = io::stdout();
+
         let mut idx: i32 = 0;
 
-        writeln!(stdout, "[================ Yummy Indexing CLI ================]").unwrap();
+        writeln!(
+            stdout,
+            "[================ Yummy Indexing CLI ================]"
+        )
+        .unwrap();
         writeln!(stdout, "Select the index you want to perform.").unwrap();
-        
+
         for index in index_schedules.index() {
             idx += 1;
-            writeln!(stdout, "[{}] {:?} - {:?}", idx, index.index_name(), index.indexing_type).unwrap();
+            writeln!(
+                stdout,
+                "[{}] {:?} - {:?}",
+                idx,
+                index.index_name(),
+                index.indexing_type
+            )
+            .unwrap();
         }
-        
+
         loop {
             writeln!(stdout, "\n").unwrap();
             write!(stdout, "Please enter your number: ").unwrap();
-            stdout.flush().unwrap();/* 즉시출력 */
-            
+            stdout.flush().unwrap(); /* 즉시출력 */
+
             let mut input: String = String::new();
-            io::stdin().read_line(&mut input).expect("Failed to read line");
-            
+            io::stdin()
+                .read_line(&mut input)
+                .expect("Failed to read line");
+
             match input.trim().parse::<i32>() {
                 Ok(number) => {
                     if number > 0 && number <= idx {
-                        let index: &IndexSchedules = index_schedules.index().get((number - 1) as usize).unwrap();
+                        let index: &IndexSchedules =
+                            index_schedules.index().get((number - 1) as usize).unwrap();
 
                         /* 여기서 색인 작업을 진행해준다. */
                         match self.main_task(index.clone()).await {
@@ -293,19 +338,24 @@ impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
                                 break;
                             }
                         }
-                        
+
                         writeln!(stdout, "Indexing operation completed.").unwrap();
                         break;
                     } else {
-                        writeln!(stdout, "Invalid input, please enter a number between 1 and {}.", idx).unwrap();
+                        writeln!(
+                            stdout,
+                            "Invalid input, please enter a number between 1 and {}.",
+                            idx
+                        )
+                        .unwrap();
                     }
-                } 
+                }
                 Err(_) => {
                     writeln!(stdout, "Invalid input, please enter a number.").unwrap();
                 }
             }
         }
-        
+
         Ok(())
     }
 }
