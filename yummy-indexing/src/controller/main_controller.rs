@@ -93,10 +93,41 @@ impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
     }
 
     #[doc = ""]
-    async fn handling_store_type(&self) -> Result<(), anyhow::Error> {
-
+    /// # Arguments
+    /// * `store_seq` - 인덱스 스케쥴 객체
+    /// * `stores_distinct` - 중복을 제외한 store list
+    ///
+    /// # Returns
+    /// * Result<(), anyhow::Error>
+    async fn handling_store_type(
+        &self,
+        store_seq: Option<Vec<i32>>,
+        stores_distinct: &mut Vec<DistinctStoreResult>,
+    ) -> Result<(), anyhow::Error> {
         /* store 리스트와 대응되는 소비분류 데이터 가져오기 */
-        let store_types_all: StoreTypesMap = self.query_service.get_store_types(None).await?;
+        let store_types_all: StoreTypesMap = if let Some(seq) = store_seq {
+            self.query_service.get_store_types(Some(seq)).await?
+        } else {
+            self.query_service.get_store_types(None).await?
+        };
+
+        let store_type_major_map: HashMap<i32, Vec<i32>> = store_types_all.store_type_major_map;
+        let store_type_sub_map: HashMap<i32, Vec<i32>> = store_types_all.store_type_sub_map;
+
+        for store_elem in stores_distinct {
+            let seq: i32 = store_elem.seq;
+
+            let major_vec: &Vec<i32> = store_type_major_map
+                .get(&seq)
+                .ok_or_else(|| anyhow!("[Error][handling_store_type()] No 'seq' corresponding to 'store_type_major_map'."))?;
+
+            let sub_vec: &Vec<i32> = store_type_sub_map
+                .get(&seq)
+                .ok_or_else(|| anyhow!("[Error][handling_store_type()] No 'seq' corresponding to 'store_type_sub_map'."))?;
+
+            store_elem.set_major_type(major_vec.clone());
+            store_elem.set_sub_type(sub_vec.clone());
+        }
 
         Ok(())
     }
@@ -119,29 +150,10 @@ impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
             .query_service
             .get_all_store_table(&index_schedule, cur_utc_date)
             .await?;
+
+        self.handling_store_type(None, &mut stores_distinct).await?;
         
-        /* store 리스트와 대응되는 소비분류 데이터 가져오기 */
-        let store_types_all: StoreTypesMap = self.query_service.get_store_types(None).await?;
-        
-        let store_type_major_map: HashMap<i32, Vec<i32>> = store_types_all.store_type_major_map;
-        let store_type_sub_map: HashMap<i32, Vec<i32>> = store_types_all.store_type_sub_map;
-
-        for store_elem in &mut stores_distinct {
-            let seq: i32 = store_elem.seq;
-            let major_vec: &Vec<i32> = match store_type_major_map.get(&seq) {
-                Some(major_vec) => major_vec,
-                None => continue,
-            };
-
-            let sub_vec: &Vec<i32> = match store_type_sub_map.get(&seq) {
-                Some(sub_vec) => sub_vec,
-                None => continue,
-            };
-
-            store_elem.set_major_type(major_vec.clone());
-            store_elem.set_sub_type(sub_vec.clone());
-        }
-
+        /* Elasticsearch 에 데이터 색인. */
         self.es_query_service
             .post_indexing_data_by_bulk_static::<DistinctStoreResult>(
                 &index_schedule,
@@ -158,7 +170,7 @@ impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
 
         Ok(())
     }
-    
+
     #[doc = "Store 객체를 증분색인 해주는 함수"]
     /// # Arguments
     /// * `index_schedule` - 인덱스 스케쥴 객체
@@ -176,12 +188,18 @@ impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
             .query_service
             .get_recent_date_from_elastic_index_info(&index_schedule)
             .await?;
-        
+
         /*
             증분색인은 Delete -> Create 로 나눔
             일단 수정되거나 새로 등록된 데이터를 기준으로 하는 상점 데이터를 모두 지워준다.
             그 다음 Create 를 사용해서 update,create 된 모든 데이터를 실제로 색인해준다.
         */
+
+        /* 0. 변경된 데이터 추출 */
+        let mut changed_list: Vec<DistinctStoreResult> = self
+            .query_service
+            .get_specific_store_table(&index_schedule, cur_utc_date, recent_index_datetime)
+            .await?;
 
         /* 1. Delete */
         let delete_list: Vec<DistinctStoreResult> = self
@@ -202,40 +220,18 @@ impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
         println!("===================================");
 
         /* 2. Create */
-        let create_list: Vec<StoreResult> = self
+        /* 중복을 제외한 store 리스트 */
+        let mut create_list: Vec<DistinctStoreResult> = self
             .query_service
-            .get_store_table_by_match(&index_schedule, Some(recent_index_datetime))
+            .get_specific_store_table(&index_schedule, cur_utc_date, recent_index_datetime)
             .await?;
 
-        /* 중복을 제외한 store 리스트 */
-        let mut store_distinct: Vec<DistinctStoreResult> = self
-            .query_service
-            .get_distinct_store_table(&create_list, cur_utc_date)?;
-
-        let seq_list: Vec<i32> = store_distinct.iter().map(|item| item.seq).collect();
-
-        /* store 리스트와 대응되는 소비분류 데이터 가져오기 */
-        let store_types_all: StoreTypesMap =
-            self.query_service.get_store_types(Some(seq_list)).await?;
-
-        let store_type_major_map: HashMap<i32, Vec<i32>> = store_types_all.store_type_major_map;
-        let store_type_sub_map: HashMap<i32, Vec<i32>> = store_types_all.store_type_sub_map;
-
-        for store_elem in &mut store_distinct {
-            let seq: i32 = store_elem.seq;
-            let major_vec: &Vec<i32> = match store_type_major_map.get(&seq) {
-                Some(major_vec) => major_vec,
-                None => continue,
-            };
-
-            let sub_vec: &Vec<i32> = match store_type_sub_map.get(&seq) {
-                Some(sub_vec) => sub_vec,
-                None => continue,
-            };
-
-            store_elem.set_major_type(major_vec.clone());
-            store_elem.set_sub_type(sub_vec.clone());
-        }
+        let seq_list: Vec<i32> = create_list
+            .iter()
+            .map(|item| item.seq)
+            .collect();
+        
+        self.handling_store_type(Some(seq_list), &mut create_list).await?;
 
         for elem in &create_list {
             println!("create_list: {:?}", elem);
