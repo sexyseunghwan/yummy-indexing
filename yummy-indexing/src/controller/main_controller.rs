@@ -92,6 +92,15 @@ impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
         Ok(())
     }
 
+    #[doc = ""]
+    async fn handling_store_type(&self) -> Result<(), anyhow::Error> {
+
+        /* store 리스트와 대응되는 소비분류 데이터 가져오기 */
+        let store_types_all: StoreTypesMap = self.query_service.get_store_types(None).await?;
+
+        Ok(())
+    }
+
     #[doc = "Store 객체를 정적색인 해주는 함수"]
     /// # Arguments
     /// * `index_schedule` - 인덱스 스케쥴 객체
@@ -105,20 +114,15 @@ impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
         /* 현재기준 UTC 시간 */
         let cur_utc_date: NaiveDateTime = get_current_utc_naive_datetime();
 
-        /* 중복이 존재하는 store 리스트 */
-        let stores: Vec<StoreResult> = self
-            .query_service
-            .get_all_store_table(&index_schedule)
-            .await?;
-
         /* 중복을 제외한 store 리스트 */
         let mut stores_distinct: Vec<DistinctStoreResult> = self
             .query_service
-            .get_distinct_store_table(&stores, cur_utc_date)?;
-
+            .get_all_store_table(&index_schedule, cur_utc_date)
+            .await?;
+        
         /* store 리스트와 대응되는 소비분류 데이터 가져오기 */
-        let store_types_all: StoreTypesMap = self.query_service.get_store_types().await?;
-
+        let store_types_all: StoreTypesMap = self.query_service.get_store_types(None).await?;
+        
         let store_type_major_map: HashMap<i32, Vec<i32>> = store_types_all.store_type_major_map;
         let store_type_sub_map: HashMap<i32, Vec<i32>> = store_types_all.store_type_sub_map;
 
@@ -154,7 +158,7 @@ impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
 
         Ok(())
     }
-
+    
     #[doc = "Store 객체를 증분색인 해주는 함수"]
     /// # Arguments
     /// * `index_schedule` - 인덱스 스케쥴 객체
@@ -172,7 +176,7 @@ impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
             .query_service
             .get_recent_date_from_elastic_index_info(&index_schedule)
             .await?;
-
+        
         /*
             증분색인은 Delete -> Create 로 나눔
             일단 수정되거나 새로 등록된 데이터를 기준으로 하는 상점 데이터를 모두 지워준다.
@@ -184,90 +188,69 @@ impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
             .query_service
             .get_dynamic_delete_store_index_new(recent_index_datetime, cur_utc_date)
             .await?;
-        
+
         for elem in &delete_list {
             println!("{:?}", elem);
         }
-        
-        println!("===================================");
 
         // if !delete_list.is_empty() {
         //     self.es_query_service
         //         .delete_index(&index_schedule, &delete_list, "seq")
         //         .await?;
         // }
-        
-        
+
+        println!("===================================");
+
         /* 2. Create */
         let create_list: Vec<StoreResult> = self
             .query_service
-            .get_store_table_by_match(&index_schedule, "dynamic", recent_index_datetime)
+            .get_store_table_by_match(&index_schedule, Some(recent_index_datetime))
             .await?;
-        
+
         /* 중복을 제외한 store 리스트 */
-        let mut create_distinct: Vec<DistinctStoreResult> = self
+        let mut store_distinct: Vec<DistinctStoreResult> = self
             .query_service
             .get_distinct_store_table(&create_list, cur_utc_date)?;
 
-        /* 상점 타입데이터를 추가 */
+        let seq_list: Vec<i32> = store_distinct.iter().map(|item| item.seq).collect();
+
+        /* store 리스트와 대응되는 소비분류 데이터 가져오기 */
+        let store_types_all: StoreTypesMap =
+            self.query_service.get_store_types(Some(seq_list)).await?;
+
+        let store_type_major_map: HashMap<i32, Vec<i32>> = store_types_all.store_type_major_map;
+        let store_type_sub_map: HashMap<i32, Vec<i32>> = store_types_all.store_type_sub_map;
+
+        for store_elem in &mut store_distinct {
+            let seq: i32 = store_elem.seq;
+            let major_vec: &Vec<i32> = match store_type_major_map.get(&seq) {
+                Some(major_vec) => major_vec,
+                None => continue,
+            };
+
+            let sub_vec: &Vec<i32> = match store_type_sub_map.get(&seq) {
+                Some(sub_vec) => sub_vec,
+                None => continue,
+            };
+
+            store_elem.set_major_type(major_vec.clone());
+            store_elem.set_sub_type(sub_vec.clone());
+        }
 
         for elem in &create_list {
             println!("create_list: {:?}", elem);
         }
-        
-        /* 증분색인은 Create -> Update -> Delete 세단계로 나눠준다. */
-        /* 1. Create */
-        // let create_list: Vec<DistinctStoreResult> = self
-        //     .query_service
-        //     .get_dynamic_create_store_index(recent_index_datetime, cur_utc_date)
-        //     .await?;
 
         // if !create_list.is_empty() {
         //     self.es_query_service
-        //         .post_indexing_data_by_bulk_dynamic::<DistinctStoreResult>(
+        //         .post_indexing_data_by_bulk_static::<DistinctStoreResult>(
         //             &index_schedule,
-        //             &create_list,
+        //             &store_distinct,
         //         )
-        //         .await
-        //         .map_err(|e| {
-        //             anyhow!(
-        //                 "[Error][store_dynamic_index()] Dynamic Index Failed (Create) : {:?}",
-        //                 e
-        //             )
-        //         })?;
-        // }
-
-        // info!("Dynamic Create Indexing: {}", create_list.len());
-
-        // /* 2. Update */
-        // let update_list: Vec<DistinctStoreResult> = self
-        //     .query_service
-        //     .get_dynamic_update_store_index(recent_index_datetime, cur_utc_date)
-        //     .await?;
-
-        // if !update_list.is_empty() {
-        //     self.es_query_service
-        //         .update_index(&index_schedule, &update_list, "seq")
         //         .await?;
         // }
 
-        // info!("Dynamic Update Indexing: {}", update_list.len());
-
-        // /* 3. Delete */
-        // let delete_list: Vec<DistinctStoreResult> = self
-        //     .query_service
-        //     .get_dynamic_delete_store_index(recent_index_datetime, cur_utc_date)
-        //     .await?;
-
-        // if !delete_list.is_empty() {
-        //     self.es_query_service
-        //         .delete_index(&index_schedule, &delete_list, "seq")
-        //         .await?;
-        // }
-
-        // info!("Dynamic Delete Indexing: {}", delete_list.len());
-
-        // if !create_list.is_empty() || !update_list.is_empty() || !delete_list.is_empty() {
+        // if !create_list.is_empty() || !delete_list.is_empty() {
         //     /* 색인시간 최신화 */
         //     self.query_service
         //         .update_recent_date_to_elastic_index_info(&index_schedule, cur_utc_date)
