@@ -773,7 +773,7 @@ impl QueryService for QueryServicePub {
 
         Ok(())
     }
-
+    
     #[doc = "음식점 정보와 맵핑되는 대분류, 소분류 정보를 모두 가져와 준다."]
     async fn get_store_types(&self) -> Result<StoreTypesMap, anyhow::Error> {
         let db: &DatabaseConnection = establish_connection().await;

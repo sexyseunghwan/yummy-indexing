@@ -189,6 +189,8 @@ impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
             println!("{:?}", elem);
         }
         
+        println!("===================================");
+
         // if !delete_list.is_empty() {
         //     self.es_query_service
         //         .delete_index(&index_schedule, &delete_list, "seq")
@@ -201,11 +203,17 @@ impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
             .query_service
             .get_store_table_by_match(&index_schedule, "dynamic", recent_index_datetime)
             .await?;
+        
+        /* 중복을 제외한 store 리스트 */
+        let mut create_distinct: Vec<DistinctStoreResult> = self
+            .query_service
+            .get_distinct_store_table(&create_list, cur_utc_date)?;
+
+        /* 상점 타입데이터를 추가 */
 
         for elem in &create_list {
             println!("create_list: {:?}", elem);
         }
-        
         
         /* 증분색인은 Create -> Update -> Delete 세단계로 나눠준다. */
         /* 1. Create */
