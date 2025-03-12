@@ -23,9 +23,7 @@ pub use log::{error, info, warn};
 
 pub use flexi_logger::{Age, Cleanup, Criterion, FileSpec, Logger, Naming, Record};
 
-pub use chrono::{
-    DateTime, FixedOffset, NaiveDateTime, TimeZone, Utc,
-};
+pub use chrono::{DateTime, FixedOffset, NaiveDateTime, TimeZone, Utc};
 
 pub use serde::{Deserialize, Serialize};
 
@@ -57,7 +55,6 @@ pub use anyhow::{anyhow, Result};
 pub use derive_new::new;
 pub use getset::{Getters, Setters};
 
-
 // pub use rdkafka:: {
 //     config::ClientConfig,
 //     consumer::Consumer,
@@ -68,7 +65,6 @@ pub use getset::{Getters, Setters};
 // pub use kafka::{
 //     producer::{Producer, Record as KafkaRecord, RequiredAcks}
 // };
-
 
 pub use sea_orm::{
     prelude::{Decimal, Expr},
@@ -90,6 +86,5 @@ pub use async_trait::async_trait;
 //use crate::repository::kafka_repository::*;
 //pub static ELASTICSEARCH_CLIENT: OnceCell<Arc<EsRepositoryPub>> = OnceCell::new();
 //pub static KAFKA_PRODUCER: OnceCell<Arc<KafkaRepositoryPub>> = OnceCell::const_new();
-
 
 pub use once_cell::sync::Lazy as once_lazy;

@@ -1,6 +1,5 @@
 use crate::common::*;
 
-
 /*
     Function that converts the date data 'naivedatetime' format to String format
 */
@@ -18,7 +17,6 @@ pub fn get_naive_datetime_from_str(
     NaiveDateTime::parse_from_str(date, format)
         .map_err(|e| anyhow!("[Datetime Parsing Error][get_naive_datetime_from_str()] Failed to parse date string: {:?} : {:?}", date, e))
 }
-
 
 #[doc = "Functions that make the current date (UTC time) a 'NaiveDateTime' data type"]
 pub fn get_current_utc_naive_datetime() -> NaiveDateTime {

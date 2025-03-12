@@ -61,7 +61,7 @@ async fn main() {
                 panic!("{:?}", e);
             }
         };
-    
+
     if compile_type == "schedule" {
         /*
             [스케쥴 타입의 색인 프로그램]
@@ -87,7 +87,6 @@ async fn main() {
                 info!("Received Ctrl+C, shutting down...");
             }
         }
-
     } else if compile_type == "cli" {
         /* [사용자 입력을 받아서 색인을 처리하는 프로그램] */
         match controller_arc.cli_indexing_task(index_schdules).await {
@@ -97,7 +96,6 @@ async fn main() {
                 panic!("[Error][main()] {:?}", e);
             }
         }
-
     } else {
         error!("[Error][main()] The 'COMPILE_TYPE' information must be 'schedule' or 'cli'.");
         panic!("[Error][main()] The 'COMPILE_TYPE' information must be 'schedule' or 'cli'.");

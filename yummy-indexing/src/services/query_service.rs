@@ -30,7 +30,7 @@ pub trait QueryService {
         &self,
         index_schedule: &IndexSchedules,
         cur_utc_date: NaiveDateTime,
-        recent_datetime: NaiveDateTime
+        recent_datetime: NaiveDateTime,
     ) -> Result<Vec<DistinctStoreResult>, anyhow::Error>;
     fn get_distinct_store_table(
         &self,
@@ -166,7 +166,8 @@ impl QueryService for QueryServicePub {
         cur_utc_date: NaiveDateTime,
     ) -> Result<Vec<DistinctStoreResult>, anyhow::Error> {
         let batch_size: usize = *index_schedule.es_batch_size();
-        let query_filter: Condition = Condition::all().add(Expr::col((store::Entity, store::Column::UseYn)).eq("Y"));
+        let query_filter: Condition =
+            Condition::all().add(Expr::col((store::Entity, store::Column::UseYn)).eq("Y"));
 
         /* 중복이 존재하는 store 리스트 */
         let stores: Vec<StoreResult> = self
@@ -179,20 +180,20 @@ impl QueryService for QueryServicePub {
 
         Ok(stores_distinct)
     }
-    
+
     #[doc = "색인할 Store 정보를 조회해주는 함수 -> 특정 정보를 가져와준다: 증분색인 용도"]
     /// # Arguments
     /// * `index_schedule` - index_schedule 정보
     /// * `cur_utc_date` - 현재 시각정보
     /// * `recent_datetime` - 가장 최근 색인 시각정보
-    /// 
+    ///
     /// # Returns
     /// * Result<Vec<DistinctStoreResult>, anyhow::Error>
     async fn get_specific_store_table(
         &self,
         index_schedule: &IndexSchedules,
         cur_utc_date: NaiveDateTime,
-        recent_datetime: NaiveDateTime
+        recent_datetime: NaiveDateTime,
     ) -> Result<Vec<DistinctStoreResult>, anyhow::Error> {
         let batch_size: usize = *index_schedule.es_batch_size();
 
@@ -272,7 +273,6 @@ impl QueryService for QueryServicePub {
         Ok(stores_distinct)
     }
 
-
     #[doc = "색인할 Store 정보를 조회해주는 함수 -> 중복 제거"]
     /// # Arguments
     /// * `stores` - store 데이터 객체 리스트
@@ -345,11 +345,10 @@ impl QueryService for QueryServicePub {
             ));
         }
 
-        let recent_datetime: NaiveDateTime = 
-            query_results
-                .get(0)
-                .ok_or_else(|| anyhow!("[Error][get_recent_date_from_elastic_index_info()] The first element of 'query_results' does not exist."))?
-                .chg_dt;
+        let recent_datetime: NaiveDateTime = query_results
+            .get(0)
+            .ok_or_else(|| anyhow!("[Error][get_recent_date_from_elastic_index_info()] The first element of 'query_results' does not exist."))?
+            .chg_dt;
 
         Ok(recent_datetime)
     }
@@ -399,7 +398,7 @@ impl QueryService for QueryServicePub {
         } else {
             Condition::all()
         };
-        
+
         let query: Select<store::Entity> = store::Entity::find()
             .join(JoinType::InnerJoin, store::Relation::StoreTypeLinkTbl.def())
             .join(

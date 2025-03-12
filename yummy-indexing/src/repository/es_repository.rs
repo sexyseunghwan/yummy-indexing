@@ -12,9 +12,7 @@ pub fn initialize_elastic_clients() -> VecDeque<EsRepositoryPub> {
 
     /* Number of Elasticsearch connection pool */
     let pool_cnt: usize = match env::var("ES_POOL_CNT") {
-        Ok(pool_cnt) => {
-            pool_cnt.parse::<usize>().unwrap_or(3)
-        }
+        Ok(pool_cnt) => pool_cnt.parse::<usize>().unwrap_or(3),
         Err(e) => {
             error!("[Error][initialize_elastic_clients()] {:?}", e);
             panic!("{:?}", e);
