@@ -104,6 +104,7 @@ impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
         store_seq: Option<Vec<i32>>,
         stores_distinct: &mut Vec<DistinctStoreResult>,
     ) -> Result<(), anyhow::Error> {
+
         /* store 리스트와 대응되는 소비분류 데이터 가져오기 */
         let store_types_all: StoreTypesMap = if let Some(seq) = store_seq {
             self.query_service.get_store_types(Some(seq)).await?
@@ -119,11 +120,11 @@ impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
 
             let major_vec: &Vec<i32> = store_type_major_map
                 .get(&seq)
-                .ok_or_else(|| anyhow!("[Error][handling_store_type()] No 'seq' corresponding to 'store_type_major_map'."))?;
+                .ok_or_else(|| anyhow!("[Error][handling_store_type()] No 'seq' corresponding to 'store_type_major_map'. seq: {}", seq))?;
 
             let sub_vec: &Vec<i32> = store_type_sub_map
                 .get(&seq)
-                .ok_or_else(|| anyhow!("[Error][handling_store_type()] No 'seq' corresponding to 'store_type_sub_map'."))?;
+                .ok_or_else(|| anyhow!("[Error][handling_store_type()] No 'seq' corresponding to 'store_type_sub_map'. seq: {}", seq))?;
 
             store_elem.set_major_type(major_vec.clone());
             store_elem.set_sub_type(sub_vec.clone());
@@ -202,56 +203,38 @@ impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
             .await?;
 
         /* 1. Delete */
-        let delete_list: Vec<DistinctStoreResult> = self
-            .query_service
-            .get_dynamic_delete_store_index_new(recent_index_datetime, cur_utc_date)
-            .await?;
-
-        for elem in &delete_list {
-            println!("{:?}", elem);
+        if !changed_list.is_empty() {
+            self.es_query_service
+                .delete_index(&index_schedule, &changed_list, "seq")
+                .await?;
+            info!("DELETE Data: {:?}", changed_list);
         }
-
-        // if !delete_list.is_empty() {
-        //     self.es_query_service
-        //         .delete_index(&index_schedule, &delete_list, "seq")
-        //         .await?;
-        // }
-
-        println!("===================================");
+        
 
         /* 2. Create */
-        /* 중복을 제외한 store 리스트 */
-        let mut create_list: Vec<DistinctStoreResult> = self
-            .query_service
-            .get_specific_store_table(&index_schedule, cur_utc_date, recent_index_datetime)
-            .await?;
-
-        let seq_list: Vec<i32> = create_list
+        let seq_list: Vec<i32> = changed_list
             .iter()
             .map(|item| item.seq)
             .collect();
         
-        self.handling_store_type(Some(seq_list), &mut create_list).await?;
+        self.handling_store_type(Some(seq_list), &mut changed_list).await?;
 
-        for elem in &create_list {
-            println!("create_list: {:?}", elem);
+        if !changed_list.is_empty() {
+            self.es_query_service
+                .post_indexing_data_by_bulk_dynamic::<DistinctStoreResult>(
+                    &index_schedule,
+                    &changed_list,
+                )
+                .await?;
+            info!("CREATE Data: {:?}", changed_list);
         }
 
-        // if !create_list.is_empty() {
-        //     self.es_query_service
-        //         .post_indexing_data_by_bulk_static::<DistinctStoreResult>(
-        //             &index_schedule,
-        //             &store_distinct,
-        //         )
-        //         .await?;
-        // }
-
-        // if !create_list.is_empty() || !delete_list.is_empty() {
-        //     /* 색인시간 최신화 */
-        //     self.query_service
-        //         .update_recent_date_to_elastic_index_info(&index_schedule, cur_utc_date)
-        //         .await?;
-        // }
+        if !changed_list.is_empty() {
+            /* 색인시간 최신화 */
+            self.query_service
+                .update_recent_date_to_elastic_index_info(&index_schedule, cur_utc_date)
+                .await?;
+        }
 
         Ok(())
     }
@@ -262,7 +245,7 @@ impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
         index_schedule: IndexSchedules,
     ) -> Result<(), anyhow::Error> {
         /* 현재기준 UTC 시간 */
-        let cur_utc_date: NaiveDateTime = get_current_utc_naive_datetime();
+        //let cur_utc_date: NaiveDateTime = get_current_utc_naive_datetime();
 
         Ok(())
     }

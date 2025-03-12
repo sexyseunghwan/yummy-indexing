@@ -13,8 +13,7 @@ pub fn initialize_elastic_clients() -> VecDeque<EsRepositoryPub> {
     /* Number of Elasticsearch connection pool */
     let pool_cnt: usize = match env::var("ES_POOL_CNT") {
         Ok(pool_cnt) => {
-            let pool_cnt = pool_cnt.parse::<usize>().unwrap_or(3);
-            pool_cnt
+            pool_cnt.parse::<usize>().unwrap_or(3)
         }
         Err(e) => {
             error!("[Error][initialize_elastic_clients()] {:?}", e);
@@ -134,7 +133,7 @@ pub trait EsRepository {
     async fn bulk_indexing_query<T: Serialize + Send + Sync>(
         &self,
         index_name: &str,
-        data: &Vec<T>,
+        data: &[T],
         batch_size: usize,
     ) -> Result<(), anyhow::Error>;
     async fn create_index(
@@ -475,7 +474,7 @@ impl EsRepository for EsRepositoryPub {
     async fn bulk_indexing_query<T: Serialize + Send + Sync>(
         &self,
         index_name: &str,
-        data: &Vec<T>,
+        data: &[T],
         batch_size: usize,
     ) -> Result<(), anyhow::Error> {
         for chunk in data.chunks(batch_size) {
@@ -485,7 +484,7 @@ impl EsRepository for EsRepositoryPub {
 
                     for item in chunk {
                         /* Converting Data to JSON */
-                        let json_value: Value = serde_json::to_value(&item)?;
+                        let json_value: Value = serde_json::to_value(item)?;
 
                         /* BulkOperation Generation (without ID) */
                         ops.push(BulkOperation::index(json_value).into());
