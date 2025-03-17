@@ -5,7 +5,7 @@ pub use std::{
     fs::File,
     future::Future,
     io::{self, BufReader, Write},
-    ops::Deref, //time::Duration,
+    ops::Deref,
     str::FromStr,
     sync::Arc,
 };
@@ -33,7 +33,7 @@ pub use serde_json::{json, Value};
 
 pub use http::header::{HeaderMap, HeaderValue, CONTENT_TYPE};
 
-pub use dotenv::dotenv;
+pub use dotenvy::from_filename;
 
 pub use cron::Schedule;
 
@@ -50,21 +50,11 @@ pub use elasticsearch::{
     SearchParts,
 };
 
+
 pub use anyhow::{anyhow, Result};
 
 pub use derive_new::new;
 pub use getset::{Getters, Setters};
-
-// pub use rdkafka:: {
-//     config::ClientConfig,
-//     consumer::Consumer,
-//     producer::{FutureProducer, FutureRecord},
-//     message::Message as KafkaMessage
-// };
-
-// pub use kafka::{
-//     producer::{Producer, Record as KafkaRecord, RequiredAcks}
-// };
 
 pub use sea_orm::{
     prelude::{Decimal, Expr},
@@ -72,19 +62,6 @@ pub use sea_orm::{
     FromQueryResult, JoinType, QueryFilter, QueryOrder, QuerySelect, RelationTrait, Select,
 };
 
-// pub use diesel::{
-//     dsl::count_star,
-//     mysql::MysqlConnection,
-//     r2d2::{ConnectionManager, Pool, PooledConnection},
-//     AsChangeset, ExpressionMethods, Insertable, NullableExpressionMethods, QueryDsl, Queryable,
-//     QueryableByName, RunQueryDsl, SelectableHelper
-// };
-
 pub use async_trait::async_trait;
-
-//use crate::repository::es_repository::*;
-//use crate::repository::kafka_repository::*;
-//pub static ELASTICSEARCH_CLIENT: OnceCell<Arc<EsRepositoryPub>> = OnceCell::new();
-//pub static KAFKA_PRODUCER: OnceCell<Arc<KafkaRepositoryPub>> = OnceCell::const_new();
 
 pub use once_cell::sync::Lazy as once_lazy;

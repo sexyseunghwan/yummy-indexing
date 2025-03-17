@@ -7,6 +7,7 @@ History     : 2025-02-20 Seunghwan Shin       # [v.1.0.0] first create
               2025-03-03 Seunghwan Shin       # [v.2.0.0] CLI 를 통해서 사용자가 직접 색인하는 기능 추가
               2025-03-12 Seunghwan Shin       # [v.2.1.0] 1) 증분색인 알고리즘 변경
                                                           2) 음식점 분류타입 색인에 추가
+              2025-03-17 Seunghwan Shin       # [v.2.2.0] dotenv -> dotenvy 로 변경
 */
 
 mod common;
@@ -40,7 +41,7 @@ mod entity;
 #[tokio::main]
 async fn main() {
     set_global_logger();
-    dotenv().ok();
+    load_env();
 
     info!("Yummy Indexing Batch Program Start");
 

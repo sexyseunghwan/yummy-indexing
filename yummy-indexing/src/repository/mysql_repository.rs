@@ -6,7 +6,6 @@ static SQL_DB_POOL: OnceCell<DatabaseConnection> = OnceCell::const_new();
 pub async fn establish_connection() -> &'static DatabaseConnection {
     SQL_DB_POOL
         .get_or_init(|| async {
-            dotenv().ok();
             let db_url: String =
                 env::var("DATABASE_URL").expect("DATABASE_URL must be set in .env");
 

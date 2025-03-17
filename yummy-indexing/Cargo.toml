@@ -6,7 +6,6 @@ edition = "2021"
 [dependencies]
 tokio = { version = "1.0", features = ["full"] } 
 reqwest = { version = "0.11", features = ["json"] }
-dotenv = "0.15.0"
 flexi_logger = "0.27.4"
 log = "0.4.20"
 chrono = "0.4.31"
@@ -35,3 +34,4 @@ http = "1.2.0"
 cron = "0.13.0"
 toml = "0.8.19"
 bigdecimal = "0.4.7"
+dotenvy = "0.15.7"
