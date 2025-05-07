@@ -19,7 +19,7 @@ pub fn load_env() {
         "dev" => ".env.dev",
         _ => ".env.dev",
     };
-    
+
     from_filename(env_file).ok();
     info!("Loaded environment file: {}", env_file);
 }

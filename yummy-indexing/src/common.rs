@@ -50,7 +50,6 @@ pub use elasticsearch::{
     SearchParts,
 };
 
-
 pub use anyhow::{anyhow, Result};
 
 pub use derive_new::new;

@@ -200,7 +200,7 @@ impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
             .query_service
             .get_specific_store_table(&index_schedule, cur_utc_date, recent_index_datetime)
             .await?;
-
+        
         /* 1. Delete */
         if !changed_list.is_empty() {
             self.es_query_service

@@ -104,6 +104,12 @@
 	  },
 	  "sub_type_name": {
 		"type": "keyword"
+	  },
+	  "tel": {
+		"type": "text", "fields": { "keyword": { "type": "keyword" } }
+	  },
+	  "url": {
+		"type": "keyword"
 	  }
     }
   }

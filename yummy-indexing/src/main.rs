@@ -8,6 +8,7 @@ History     : 2025-02-20 Seunghwan Shin       # [v.1.0.0] first create
               2025-03-12 Seunghwan Shin       # [v.2.1.0] 1) 증분색인 알고리즘 변경
                                                           2) 음식점 분류타입 색인에 추가
               2025-03-17 Seunghwan Shin       # [v.2.2.0] dotenv -> dotenvy 로 변경
+              2025-05-07 Seunghwan Shin       # [v.2.3.0] store 테이블 tel, url 정보 색인에 추가
 */
 
 mod common;
@@ -62,7 +63,7 @@ async fn main() {
                 panic!("{:?}", e);
             }
         };
-
+    
     if compile_type == "schedule" {
         /*
             [스케쥴 타입의 색인 프로그램]

@@ -263,8 +263,6 @@ impl EsQueryService for EsQueryServicePub {
                 .ok_or_else(|| anyhow!("[Error][delete_index()] There was a problem converting data for 'unique_value'"))?
                 .try_into()?;
 
-            println!("unique_value: {}", unique_value);
-
             /* 기존 문서 삭제 */
             es_conn
                 .delete_query_where_field(index_name, unique_field_name, unique_value)

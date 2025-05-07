@@ -97,7 +97,13 @@ impl QueryService for QueryServicePub {
                 .order_by_asc(store::Column::Seq)
                 .limit(batch_size as u64)
                 .select_only()
-                .columns([store::Column::Seq, store::Column::Name, store::Column::Type])
+                .columns([
+                    store::Column::Seq,
+                    store::Column::Name,
+                    store::Column::Type,
+                    store::Column::Tel,
+                    store::Column::Url,
+                ])
                 .expr_as(
                     Expr::case(
                         Expr::col((
@@ -174,7 +180,11 @@ impl QueryService for QueryServicePub {
             .get_store_by_batch(batch_size, query_filter, cur_utc_date)
             .await?;
 
-        /* 중복을 제외한 store 리스트 */
+        /*
+            중복을 제외한 store 리스트
+            - 어떠한 중복을 말하는건지?
+            -> recommend_names: 즉 추천내용 조인 중복 때문에 중복제거로직이 들어간다.
+        */
         let stores_distinct: Vec<DistinctStoreResult> =
             self.get_distinct_store_table(&stores, cur_utc_date)?;
 
@@ -312,6 +322,8 @@ impl QueryService for QueryServicePub {
                         store.location_district.clone(),
                         Vec::new(),
                         Vec::new(),
+                        store.tel.clone(),
+                        store.url.clone(),
                     )
                 });
         }
@@ -333,7 +345,7 @@ impl QueryService for QueryServicePub {
         let index_name: &String = index_schedule.index_name();
 
         let db: &DatabaseConnection = establish_connection().await;
-
+        
         let query: Select<elastic_index_info_tbl::Entity> = elastic_index_info_tbl::Entity::find()
             .filter(elastic_index_info_tbl::Column::IndexName.eq(index_name));
 
