@@ -1,5 +1,5 @@
 [[index]]
-index_name = "dev-yummy-index"
+index_name = "yummy-index"
 time = "0 * 9-23 * * * *"
 indexing_type = "dynamic"
 function_name = "store_dynamic_index"
@@ -8,7 +8,7 @@ es_batch_size = 100
 
 
 [[index]]
-index_name = "dev-yummy-index"
+index_name = "yummy-index"
 time = "0 40 8 * * * *"
 indexing_type = "static"
 setting_path = "./indexing_settings/store_infos.json"
