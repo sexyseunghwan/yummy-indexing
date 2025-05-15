@@ -9,6 +9,7 @@ History     : 2025-02-20 Seunghwan Shin       # [v.1.0.0] first create
                                                           2) 음식점 분류타입 색인에 추가
               2025-03-17 Seunghwan Shin       # [v.2.2.0] dotenv -> dotenvy 로 변경
               2025-05-07 Seunghwan Shin       # [v.2.3.0] store 테이블 tel, url 정보 색인에 추가
+              2025-05-00 Seunghwan Shin       # [v.2.3.0] 
 */
 
 mod common;
@@ -31,6 +32,7 @@ use controller::main_controller::*;
 mod configuration;
 use configuration::index_schedules_config::*;
 use configuration::system_config::*;
+use configuration::elastic_server_config::*;
 
 mod models;
 
@@ -45,6 +47,9 @@ async fn main() {
     load_env();
 
     info!("Yummy Indexing Batch Program Start");
+
+    /* Elasticsearch connection 정보 전역화 */
+    init_elastic_config();
 
     let system_infos: Arc<SystemConfig> = get_system_config();
     let compile_type: &str = system_infos.complie_type().as_str();

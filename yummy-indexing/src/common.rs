@@ -15,7 +15,7 @@ pub use rand::{prelude::SliceRandom, rngs::StdRng, SeedableRng};
 pub use tokio::{
     io::AsyncReadExt,
     signal,
-    sync::{Mutex, MutexGuard, OnceCell},
+    sync::{Mutex, MutexGuard, OnceCell, OwnedSemaphorePermit, Semaphore},
     time::{Duration, Interval},
 };
 
@@ -63,4 +63,7 @@ pub use sea_orm::{
 
 pub use async_trait::async_trait;
 
-pub use once_cell::sync::Lazy as once_lazy;
+pub use once_cell::sync::{
+    Lazy as once_lazy,
+    OnceCell as once_cells
+};
