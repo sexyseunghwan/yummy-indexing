@@ -345,7 +345,7 @@ impl QueryService for QueryServicePub {
         let index_name: &String = index_schedule.index_name();
 
         let db: &DatabaseConnection = establish_connection().await;
-        
+
         let query: Select<elastic_index_info_tbl::Entity> = elastic_index_info_tbl::Entity::find()
             .filter(elastic_index_info_tbl::Column::IndexName.eq(index_name));
 

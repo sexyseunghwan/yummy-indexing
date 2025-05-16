@@ -1,6 +1,6 @@
 use crate::common::*;
 
-static SQL_DB_POOL: OnceCell<DatabaseConnection> = OnceCell::const_new();
+static SQL_DB_POOL: tokio::sync::OnceCell<DatabaseConnection> = OnceCell::const_new();
 
 #[doc = "SQL 커넥션 POOL을 초기화 해주는 함수"]
 pub async fn establish_connection() -> &'static DatabaseConnection {

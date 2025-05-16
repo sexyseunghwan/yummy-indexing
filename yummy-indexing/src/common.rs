@@ -1,5 +1,5 @@
 pub use std::{
-    collections::{HashMap, HashSet, VecDeque},
+    collections::{HashMap, HashSet},
     env,
     fmt::Debug,
     fs::File,
@@ -15,11 +15,11 @@ pub use rand::{prelude::SliceRandom, rngs::StdRng, SeedableRng};
 pub use tokio::{
     io::AsyncReadExt,
     signal,
-    sync::{Mutex, MutexGuard, OnceCell, OwnedSemaphorePermit, Semaphore},
+    sync::{OnceCell, OwnedSemaphorePermit, Semaphore},
     time::{Duration, Interval},
 };
 
-pub use log::{error, info, warn};
+pub use log::{error, info};
 
 pub use flexi_logger::{Age, Cleanup, Criterion, FileSpec, Logger, Naming, Record};
 
@@ -63,7 +63,4 @@ pub use sea_orm::{
 
 pub use async_trait::async_trait;
 
-pub use once_cell::sync::{
-    Lazy as once_lazy,
-    OnceCell as once_cells
-};
+pub use once_cell::sync::{Lazy as once_lazy, OnceCell as once_cells};

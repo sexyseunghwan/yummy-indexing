@@ -1,6 +1,5 @@
 use crate::common::*;
 
-
 static ELASTIC_CONFIG: once_cells<ElasticServerConfig> = once_cells::new();
 
 #[derive(Debug, Deserialize, Serialize, Getters)]
@@ -23,9 +22,10 @@ pub fn init_elastic_config() {
 
 #[doc = "전역화된 ElasticServerConfig 정보를 안전하게 사용가능하게 하는 함수"]
 pub fn get_elastic_config() -> &'static ElasticServerConfig {
-    ELASTIC_CONFIG.get().expect("[Error][get_config] CONFIG not initialized")
+    ELASTIC_CONFIG
+        .get()
+        .expect("[Error][get_config] CONFIG not initialized")
 }
-
 
 impl ElasticServerConfig {
     pub fn new() -> Self {

@@ -11,62 +11,105 @@ use crate::models::store_types::*;
 use crate::utils_module::time_utils::*;
 
 #[derive(Debug, new)]
-pub struct MainController<Q: QueryService, E: EsQueryService> {
+pub struct ProcessHandler<
+    Q: QueryService + Sync + Send + 'static,
+    E: EsQueryService + Sync + Send + 'static,
+> {
     query_service: Q,
     es_query_service: E,
 }
 
-impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
-    #[doc = "메인 스케쥴러 함수"]
-    /// # Arguments
-    /// * `index_schedule` - 인덱스 스케쥴 객체
-    ///
-    /// # Returns
-    /// * Result<(), anyhow::Error>
-    pub async fn main_schedule_task(
-        &self,
-        index_schedule: IndexSchedules,
-    ) -> Result<(), anyhow::Error> {
-        let schedule: Schedule =
-            Schedule::from_str(&index_schedule.time).expect("Failed to parse CRON expression");
+impl<Q: QueryService + Sync + Send + 'static, E: EsQueryService + Sync + Send + 'static>
+    ProcessHandler<Q, E>
+{
+    // #[doc = "메인 테스크 함수"]
+    // /// # Arguments
+    // /// * `compile_type` - 컴파일 타입
+    // ///
+    // /// # Returns
+    // /// * Result<(), anyhow::Error>
+    // pub async fn main_task(&self, compile_type: &str) -> Result<(), anyhow::Error> {
+    //     /* 모니터링 대상이 되는 색인될 인덱스 정보들 */
+    //     let index_schdules: IndexSchedulesConfig =
+    //         match read_toml_from_file::<IndexSchedulesConfig>(&INDEX_LIST_PATH) {
+    //             Ok(index_schdules) => index_schdules,
+    //             Err(e) => {
+    //                 error!("{:?}", e);
+    //                 panic!("{:?}", e);
+    //             }
+    //         };
+    //     match compile_type {
+    //         "schedule" => {
+    //             /*
+    //                 [스케쥴 타입의 색인 프로그램]
+    //                 각 인덱스 별로 모니터링을 비동기적으로 실시해준다.
+    //                 스케쥴링 대기 작업 진행
+    //             */
+    //         }
+    //         "cli" => {
+    //         }
+    //         other => {
+    //             error!(
+    //                 "[Error][main()] Invalid COMPILE_TYPE: '{}'. Must be 'schedule' or 'cli'.",
+    //                 other
+    //             );
+    //             panic!(
+    //                 "[Error][main()] The 'COMPILE_TYPE' information must be 'schedule' or 'cli'."
+    //             );
+    //         }
+    //     }
+    //     Ok(())
+    // }
 
-        let system_config: Arc<SystemConfig> = get_system_config();
+    // #[doc = "메인 스케쥴러 함수"]
+    // /// # Arguments
+    // /// * `index_schedule` - 인덱스 스케쥴 객체
+    // ///
+    // /// # Returns
+    // /// * Result<(), anyhow::Error>
+    // pub async fn main_schedule_task(
+    //     &self,
+    //     index_schedule: IndexSchedules,
+    // ) -> Result<(), anyhow::Error> {
+    //     let schedule: Schedule =
+    //         Schedule::from_str(&index_schedule.time).expect("Failed to parse CRON expression");
 
-        let mut interval: Interval = tokio::time::interval(tokio::time::Duration::from_millis(
-            system_config.schedule_term,
-        ));
+    //     let system_config: Arc<SystemConfig> = get_system_config();
 
-        /* 한국 표준시 GMT + 9 */
-        let kst_offset: FixedOffset = match FixedOffset::east_opt(9 * 3600) {
-            Some(kst_offset) => kst_offset,
-            None => {
-                error!(
-                    "[Error][main_schedule_task()] There was a problem initializing 'kst_offset'."
-                );
-                panic!(
-                    "[Error][main_schedule_task()] There was a problem initializing 'kst_offset'."
-                );
-            }
-        };
+    //     let mut interval: Interval = tokio::time::interval(tokio::time::Duration::from_millis(
+    //         system_config.schedule_term,
+    //     ));
 
-        loop {
-            interval.tick().await;
+    //     /* 한국 표준시 GMT + 9 */
+    //     let kst_offset: FixedOffset = match FixedOffset::east_opt(9 * 3600) {
+    //         Some(kst_offset) => kst_offset,
+    //         None => {
+    //             error!(
+    //                 "[Error][main_schedule_task()] There was a problem initializing 'kst_offset'."
+    //             );
+    //             panic!(
+    //                 "[Error][main_schedule_task()] There was a problem initializing 'kst_offset'."
+    //             );
+    //         }
+    //     };
 
-            let now: DateTime<Utc> = Utc::now();
-            let kst_now: DateTime<FixedOffset> = now.with_timezone(&kst_offset); /* Converting UTC Current Time to KST */
+    //     loop {
+    //         interval.tick().await;
 
-            if let Some(next) = schedule.upcoming(kst_offset).take(1).next() {
-                if (next - kst_now).num_seconds() < 1 {
-                    match self.main_task(index_schedule.clone()).await {
-                        Ok(_) => (),
-                        Err(e) => {
-                            error!("[Error][main_schedule_task() -> main_task()] {:?}", e);
-                        }
-                    }
-                }
-            }
-        }
-    }
+    //         let now: DateTime<Utc> = Utc::now();
+    //         let kst_now: DateTime<FixedOffset> = now.with_timezone(&kst_offset); /* Converting UTC Current Time to KST */
+    //         if let Some(next) = schedule.upcoming(kst_offset).take(1).next() {
+    //             if (next - kst_now).num_seconds() < 1 {
+    //                 match self.main_task_sort(index_schedule.clone()).await {
+    //                     Ok(_) => (),
+    //                     Err(e) => {
+    //                         error!("[Error][main_schedule_task() -> main_task()] {:?}", e);
+    //                     }
+    //                 }
+    //             }
+    //         }
+    //     }
+    // }
 
     #[doc = "메인 작업 함수 -> 색인 진행 함수"]
     /// # Arguments
@@ -74,7 +117,10 @@ impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
     ///
     /// # Returns
     /// * Result<(), anyhow::Error>
-    pub async fn main_task(&self, index_schedule: IndexSchedules) -> Result<(), anyhow::Error> {
+    pub async fn main_task_schedule(
+        &self,
+        index_schedule: IndexSchedules,
+    ) -> Result<(), anyhow::Error> {
         let function_name: &str = index_schedule.function_name().as_str();
 
         match function_name {
@@ -200,7 +246,7 @@ impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
             .query_service
             .get_specific_store_table(&index_schedule, cur_utc_date, recent_index_datetime)
             .await?;
-        
+
         /* 1. Delete */
         if !changed_list.is_empty() {
             self.es_query_service
@@ -235,7 +281,7 @@ impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
         Ok(())
     }
 
-    #[doc = "자동완성 키워드 정적색인 함수"]
+    #[doc = "자동완성 키워드 정적색인 함수 - ing"]
     pub async fn auto_complete_static_index(
         &self,
         index_schedule: IndexSchedules,
@@ -296,14 +342,14 @@ impl<Q: QueryService, E: EsQueryService> MainController<Q, E> {
                             index_schedules.index().get((number - 1) as usize).unwrap();
 
                         /* 여기서 색인 작업을 진행해준다. */
-                        match self.main_task(index.clone()).await {
-                            Ok(_) => (),
-                            Err(e) => {
-                                error!("[Error][cli_indexing_task() -> main_task()] {:?}", e);
-                                writeln!(stdout, "Index failed.").unwrap();
-                                break;
-                            }
-                        }
+                        // match self.main_task(index.clone()).await {
+                        //     Ok(_) => (),
+                        //     Err(e) => {
+                        //         error!("[Error][cli_indexing_task() -> main_task()] {:?}", e);
+                        //         writeln!(stdout, "Index failed.").unwrap();
+                        //         break;
+                        //     }
+                        // }
 
                         writeln!(stdout, "Indexing operation completed.").unwrap();
                         break;
