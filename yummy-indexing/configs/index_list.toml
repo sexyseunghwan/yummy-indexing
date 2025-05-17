@@ -15,3 +15,13 @@ setting_path = "./indexing_settings/store_infos.json"
 function_name = "store_static_index"
 sql_batch_size = 100
 es_batch_size = 100
+
+
+[[index]]
+index_name = "dev-yummy-auto-keyword"
+time = "0 40 8 * * * *"
+indexing_type = "static"
+setting_path = "./indexing_settings/auto_keyword_index.json"
+function_name = "auto_complete_static_index"
+sql_batch_size = 10
+es_batch_size = 100

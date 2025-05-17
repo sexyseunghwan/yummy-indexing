@@ -7,7 +7,7 @@ use crate::configuration::index_schedules_config::*;
 use crate::services::es_query_service::*;
 use crate::services::query_service::*;
 
-#[doc = ""]
+#[doc = "cli 명령어를 수행해주는 컨트롤러"]
 /// # Arguments
 /// * `index_schedules` - 인덱스 스케쥴 객체
 ///
@@ -47,9 +47,11 @@ pub async fn centralized_cli_loop(
     }
 
     loop {
+        
         writeln!(stdout, "\n").expect("[Error][centralized_cli_loop] Standard Output Error. 4");
         write!(stdout, "Please enter your number: ")
             .expect("[Error][centralized_cli_loop] Standard Output Error. 5");
+        
         stdout
             .flush()
             .expect("[Error][centralized_cli_loop] Standard Output Error. 6");
@@ -62,20 +64,28 @@ pub async fn centralized_cli_loop(
         match input.trim().parse::<i32>() {
             Ok(number) => {
                 if number > 0 && number <= idx {
-                    let index: &IndexSchedules =
-                        index_schedules.index().get((number - 1) as usize).unwrap();
-
+                    let index: &IndexSchedules = match index_schedules.index().get((number - 1) as usize) {
+                        Some(index) => index,
+                        None => {
+                            error!("[Error][entralized_cli_loop] No {} index information exists in `index_schedules`.", number);
+                            continue;
+                        } 
+                    };
+                    
                     /* 여기서 색인 작업을 진행해준다. */
-                    // match self.main_task(index.clone()).await {
-                    //     Ok(_) => (),
-                    //     Err(e) => {
-                    //         error!("[Error][cli_indexing_task() -> main_task()] {:?}", e);
-                    //         writeln!(stdout, "Index failed.").unwrap();
-                    //         break;
-                    //     }
-                    // }
+                    match process_handler.main_indexing_task(index.clone()).await {
+                        Ok(_) => (),
+                        Err(e) => {
+                            error!("[Error][centralized_cli_loop] {:?}", e);
+                            writeln!(stdout, "Index failed.")
+                                .expect("[Error][centralized_cli_loop] Standard Output Error. 7");
+                            break;
+                        }
+                    }
+                    
+                    writeln!(stdout, "Indexing operation completed.")
+                        .expect("[Error][centralized_cli_loop] Standard Output Error. 8");
 
-                    writeln!(stdout, "Indexing operation completed.").unwrap();
                     break;
                 } else {
                     writeln!(
@@ -83,11 +93,12 @@ pub async fn centralized_cli_loop(
                         "Invalid input, please enter a number between 1 and {}.",
                         idx
                     )
-                    .unwrap();
+                    .expect("[Error][centralized_cli_loop] Standard Output Error. 9");
                 }
             }
             Err(_) => {
-                writeln!(stdout, "Invalid input, please enter a number.").unwrap();
+                writeln!(stdout, "Invalid input, please enter a number.")
+                    .expect("[Error][centralized_cli_loop] Standard Output Error. 10");
             }
         }
     }

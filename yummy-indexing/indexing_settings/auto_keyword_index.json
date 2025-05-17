@@ -53,7 +53,24 @@
                 "edge_ngram_analyzer": {
                     "type": "custom",
                     "tokenizer": "edge_ngram_tokenizer",
-                    "filter": ["lowercase"]
+                    "filter": [
+                        "lowercase",
+                        "trim"
+                    ]
+                }
+            },
+            "filter": {
+                "edge_ngram_filter_front" : {
+                    "type" : "edge_ngram",
+                    "min_gram" : "2",
+                    "max_gram" : "50",
+                    "side" : "front"
+                },
+                "edge_ngram_filter_chosung" : {
+                    "type" : "edge_ngram",
+                    "min_gram" : "1",
+                    "max_gram" : "50",
+                    "side" : "front"
                 }
             },
             "tokenizer": {
@@ -66,10 +83,23 @@
     },
     "mappings": {
         "properties": {
+            "seq": {
+                "type": "integer"
+            },
             "name": {
                 "type": "text",
-                "analyzer": "edge_ngram_analyzer",
-                "search_analyzer": "nori_analyzer"
+                "fields": {
+                    "autocomplete": {
+                        "type": "text",
+                        "analyzer": "edge_ngram_analyzer",
+                        "search_analyzer": "token_search_analyzer"
+                    },
+                    "chosung": {
+                        "type": "text",
+                        "analyzer": "chosung_index_analyzer",
+                        "search_analyzer": "chosung_search_analyzer"
+                    }
+                }
             }
         }
     }

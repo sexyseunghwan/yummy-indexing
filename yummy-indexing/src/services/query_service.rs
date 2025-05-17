@@ -4,6 +4,7 @@ use crate::configuration::index_schedules_config::*;
 
 use crate::models::store_to_elastic::*;
 use crate::models::store_types::*;
+use crate::models::auto_complete::*;
 
 use crate::repository::mysql_repository::*;
 
@@ -50,6 +51,11 @@ pub trait QueryService {
         &self,
         store_seqs: Option<Vec<i32>>,
     ) -> Result<StoreTypesMap, anyhow::Error>;
+    async fn get_store_name_distinct_by_batch(
+        &self,
+        index_schedule: &IndexSchedules
+    ) -> Result<Vec<AutoComplete>, anyhow::Error>;
+    // AutoComplete
 }
 
 #[derive(Debug, new)]
@@ -469,4 +475,53 @@ impl QueryService for QueryServicePub {
 
         Ok(store_types_map)
     }
+
+    #[doc = ""]
+    /// # Arguments
+    /// * `index_schedule` - 인덱스 스케쥴 정보
+    ///
+    /// # Returns
+    /// * Result<Vec<AutoComplete>, anyhow::Error>
+    async fn get_store_name_distinct_by_batch(
+        &self,
+        index_schedule: &IndexSchedules
+    ) -> Result<Vec<AutoComplete>, anyhow::Error> {
+        let db: &DatabaseConnection = establish_connection().await;
+
+        let batch_size: usize = index_schedule.sql_batch_size;
+
+        let mut total_auto_complete_list: Vec<AutoComplete> = Vec::new();
+        let mut last_seq: Option<i32> = None;
+
+        loop {
+            
+            let mut query: Select<store::Entity> = store::Entity::find()
+                .order_by_asc(store::Column::Seq)
+                .limit(batch_size as u64)
+                .select_only()
+                .columns([
+                    store::Column::Seq,
+                    store::Column::Name
+                    ] 
+                )
+                .filter(store::Column::UseYn.eq("Y"));
+            
+            if let Some(seq) = last_seq {
+                query = query.filter(store::Column::Seq.gt(seq)); /* `seq`가 마지막 값보다 큰 데이터 가져오기 */
+            }
+
+            let mut auto_completes: Vec<AutoComplete> = query.into_model().all(db).await?;
+
+            if auto_completes.is_empty() {
+                break;
+            }
+            
+            total_auto_complete_list.append(&mut auto_completes);
+
+            last_seq = total_auto_complete_list.last().map(|s| s.seq);
+        }
+
+        Ok(total_auto_complete_list)
+    }
+
 }

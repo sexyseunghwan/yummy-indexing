@@ -7,6 +7,7 @@ use crate::configuration::{index_schedules_config::*, system_config::*};
 
 use crate::models::store_to_elastic::*;
 use crate::models::store_types::*;
+use crate::models::auto_complete::*;
 
 use crate::utils_module::time_utils::*;
 
@@ -20,104 +21,15 @@ pub struct ProcessHandler<
 }
 
 impl<Q: QueryService + Sync + Send + 'static, E: EsQueryService + Sync + Send + 'static>
-    ProcessHandler<Q, E>
-{
-    // #[doc = "메인 테스크 함수"]
-    // /// # Arguments
-    // /// * `compile_type` - 컴파일 타입
-    // ///
-    // /// # Returns
-    // /// * Result<(), anyhow::Error>
-    // pub async fn main_task(&self, compile_type: &str) -> Result<(), anyhow::Error> {
-    //     /* 모니터링 대상이 되는 색인될 인덱스 정보들 */
-    //     let index_schdules: IndexSchedulesConfig =
-    //         match read_toml_from_file::<IndexSchedulesConfig>(&INDEX_LIST_PATH) {
-    //             Ok(index_schdules) => index_schdules,
-    //             Err(e) => {
-    //                 error!("{:?}", e);
-    //                 panic!("{:?}", e);
-    //             }
-    //         };
-    //     match compile_type {
-    //         "schedule" => {
-    //             /*
-    //                 [스케쥴 타입의 색인 프로그램]
-    //                 각 인덱스 별로 모니터링을 비동기적으로 실시해준다.
-    //                 스케쥴링 대기 작업 진행
-    //             */
-    //         }
-    //         "cli" => {
-    //         }
-    //         other => {
-    //             error!(
-    //                 "[Error][main()] Invalid COMPILE_TYPE: '{}'. Must be 'schedule' or 'cli'.",
-    //                 other
-    //             );
-    //             panic!(
-    //                 "[Error][main()] The 'COMPILE_TYPE' information must be 'schedule' or 'cli'."
-    //             );
-    //         }
-    //     }
-    //     Ok(())
-    // }
-
-    // #[doc = "메인 스케쥴러 함수"]
-    // /// # Arguments
-    // /// * `index_schedule` - 인덱스 스케쥴 객체
-    // ///
-    // /// # Returns
-    // /// * Result<(), anyhow::Error>
-    // pub async fn main_schedule_task(
-    //     &self,
-    //     index_schedule: IndexSchedules,
-    // ) -> Result<(), anyhow::Error> {
-    //     let schedule: Schedule =
-    //         Schedule::from_str(&index_schedule.time).expect("Failed to parse CRON expression");
-
-    //     let system_config: Arc<SystemConfig> = get_system_config();
-
-    //     let mut interval: Interval = tokio::time::interval(tokio::time::Duration::from_millis(
-    //         system_config.schedule_term,
-    //     ));
-
-    //     /* 한국 표준시 GMT + 9 */
-    //     let kst_offset: FixedOffset = match FixedOffset::east_opt(9 * 3600) {
-    //         Some(kst_offset) => kst_offset,
-    //         None => {
-    //             error!(
-    //                 "[Error][main_schedule_task()] There was a problem initializing 'kst_offset'."
-    //             );
-    //             panic!(
-    //                 "[Error][main_schedule_task()] There was a problem initializing 'kst_offset'."
-    //             );
-    //         }
-    //     };
-
-    //     loop {
-    //         interval.tick().await;
-
-    //         let now: DateTime<Utc> = Utc::now();
-    //         let kst_now: DateTime<FixedOffset> = now.with_timezone(&kst_offset); /* Converting UTC Current Time to KST */
-    //         if let Some(next) = schedule.upcoming(kst_offset).take(1).next() {
-    //             if (next - kst_now).num_seconds() < 1 {
-    //                 match self.main_task_sort(index_schedule.clone()).await {
-    //                     Ok(_) => (),
-    //                     Err(e) => {
-    //                         error!("[Error][main_schedule_task() -> main_task()] {:?}", e);
-    //                     }
-    //                 }
-    //             }
-    //         }
-    //     }
-    // }
-
+    ProcessHandler<Q, E> {
+    
     #[doc = "메인 작업 함수 -> 색인 진행 함수"]
     /// # Arguments
     /// * `index_schedule` - 인덱스 스케쥴 객체
     ///
     /// # Returns
     /// * Result<(), anyhow::Error>
-    pub async fn main_task_schedule(
+    pub async fn main_indexing_task(
         &self,
         index_schedule: IndexSchedules,
     ) -> Result<(), anyhow::Error> {
@@ -138,7 +50,7 @@ impl<Q: QueryService + Sync + Send + 'static, E: EsQueryService + Sync + Send + 
         Ok(())
     }
 
-    #[doc = ""]
+    #[doc = "상점분류 정해주는 함수"]
     /// # Arguments
     /// * `store_seq` - 인덱스 스케쥴 객체
     /// * `stores_distinct` - 중복을 제외한 store list
@@ -150,7 +62,7 @@ impl<Q: QueryService + Sync + Send + 'static, E: EsQueryService + Sync + Send + 
         store_seq: Option<Vec<i32>>,
         stores_distinct: &mut Vec<DistinctStoreResult>,
     ) -> Result<(), anyhow::Error> {
-        /* store 리스트와 대응되는 소비분류 데이터 가져오기 */
+        /* store 리스트와 대응되는 상점분류 데이터 가져오기 */
         let store_types_all: StoreTypesMap = if let Some(seq) = store_seq {
             self.query_service.get_store_types(Some(seq)).await?
         } else {
@@ -281,93 +193,35 @@ impl<Q: QueryService + Sync + Send + 'static, E: EsQueryService + Sync + Send + 
         Ok(())
     }
 
-    #[doc = "자동완성 키워드 정적색인 함수 - ing"]
+    #[doc = "자동완성 키워드 정적색인 함수"]
+    /// # Arguments
+    /// * `index_schedule` - 인덱스 스케쥴 객체
+    ///
+    /// # Returns
+    /// * Result<(), anyhow::Error>
     pub async fn auto_complete_static_index(
         &self,
         index_schedule: IndexSchedules,
     ) -> Result<(), anyhow::Error> {
         /* 현재기준 UTC 시간 */
-        //let cur_utc_date: NaiveDateTime = get_current_utc_naive_datetime();
+        let cur_utc_date: NaiveDateTime = get_current_utc_naive_datetime();
+        
+        /* 자동완성 키워드 데이터 리스트 */
+        let auto_completes: Vec<AutoComplete> = self.query_service.get_store_name_distinct_by_batch(&index_schedule).await?;
 
-        Ok(())
-    }
-
-    #[doc = "사용자의 입력을 받아서 색인을 진행시켜주는 함수"]
-    /// # Arguments
-    /// * `index_schedules` - 인덱스 스케쥴 객체들
-    ///
-    /// # Returns
-    /// * Result<(), anyhow::Error>
-    pub async fn cli_indexing_task(
-        &self,
-        index_schedules: IndexSchedulesConfig,
-    ) -> Result<(), anyhow::Error> {
-        let mut stdout: io::Stdout = io::stdout();
-
-        let mut idx: i32 = 0;
-
-        writeln!(
-            stdout,
-            "[================ Yummy Indexing CLI ================]"
-        )
-        .unwrap();
-        writeln!(stdout, "Select the index you want to perform.").unwrap();
-
-        for index in index_schedules.index() {
-            idx += 1;
-            writeln!(
-                stdout,
-                "[{}] {:?} - {:?}",
-                idx,
-                index.index_name(),
-                index.indexing_type
+        /* Elasticsearch 에 데이터 색인. */
+        self.es_query_service
+            .post_indexing_data_by_bulk_static::<AutoComplete>(
+                &index_schedule,
+                &auto_completes,
             )
-            .unwrap();
-        }
-
-        loop {
-            writeln!(stdout, "\n").unwrap();
-            write!(stdout, "Please enter your number: ").unwrap();
-            stdout.flush().unwrap(); /* 즉시출력 */
-
-            let mut input: String = String::new();
-            io::stdin()
-                .read_line(&mut input)
-                .expect("Failed to read line");
-
-            match input.trim().parse::<i32>() {
-                Ok(number) => {
-                    if number > 0 && number <= idx {
-                        let index: &IndexSchedules =
-                            index_schedules.index().get((number - 1) as usize).unwrap();
-
-                        /* 여기서 색인 작업을 진행해준다. */
-                        // match self.main_task(index.clone()).await {
-                        //     Ok(_) => (),
-                        //     Err(e) => {
-                        //         error!("[Error][cli_indexing_task() -> main_task()] {:?}", e);
-                        //         writeln!(stdout, "Index failed.").unwrap();
-                        //         break;
-                        //     }
-                        // }
-
-                        writeln!(stdout, "Indexing operation completed.").unwrap();
-                        break;
-                    } else {
-                        writeln!(
-                            stdout,
-                            "Invalid input, please enter a number between 1 and {}.",
-                            idx
-                        )
-                        .unwrap();
-                    }
-                }
-                Err(_) => {
-                    writeln!(stdout, "Invalid input, please enter a number.").unwrap();
-                }
-            }
-        }
-
+            .await?;
+        
+        /* 색인시간 최신화 */
+        self.query_service
+            .update_recent_date_to_elastic_index_info(&index_schedule, cur_utc_date)
+            .await?;
+        
         Ok(())
     }
 }

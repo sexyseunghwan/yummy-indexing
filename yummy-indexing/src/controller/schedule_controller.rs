@@ -1,5 +1,3 @@
-use rand::seq::index;
-
 use crate::common::*;
 
 use crate::configuration::index_schedules_config::*;
@@ -46,10 +44,6 @@ pub async fn centralized_schedule_loop(
         })
         .collect();
 
-    // for (key, value) in &schedule_map {
-    //     println!("{}: {}", key, value);
-    // }
-
     loop {
         interval.tick().await;
 
@@ -67,7 +61,7 @@ pub async fn centralized_schedule_loop(
                         let index_clone: IndexSchedules = index.clone();
 
                         tokio::spawn(async move {
-                            if let Err(e) = arc_handler.main_task_schedule(index_clone).await {
+                            if let Err(e) = arc_handler.main_indexing_task(index_clone).await {
                                 error!("[Error][centralized_schedule_loop] Error: {:?}", e);
                             }
                         });

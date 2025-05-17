@@ -19,25 +19,24 @@ use common::*;
 
 mod utils_module;
 use configuration::system_config::*;
-use controller::schedule_controller::centralized_schedule_loop;
+
 use utils_module::io_utils::*;
 use utils_module::logger_utils::*;
 
 mod repository;
 
 mod services;
-use services::es_query_service::*;
-use services::query_service::*;
 
 mod controller;
+use controller::cli_controller::*;
+use controller::schedule_controller::*;
 
 mod handler;
-use handler::process_handler::*;
 
 mod configuration;
 use configuration::elastic_server_config::*;
 use configuration::index_schedules_config::*;
-use configuration::system_config::*;
+
 
 mod models;
 
@@ -68,27 +67,35 @@ async fn main() {
                 panic!("{:?}", e);
             }
         };
-
-    centralized_schedule_loop(index_schdules).await.unwrap();
-
-    // match compile_type {
-    //     "schedule" => {
-
-    //     }
-    //     "cli" => {
-
-    //     }
-    //     other => {
-    //         error!(
-    //             "[Error][main()] Invalid COMPILE_TYPE: '{}'. Must be 'schedule' or 'cli'.",
-    //             other
-    //         );
-    //         panic!(
-    //             "[Error][main()] The 'COMPILE_TYPE' information must be 'schedule' or 'cli'."
-    //         );
-    //     }
-    // }
-
+        
+    match compile_type {
+        "schedule" => {
+            match centralized_schedule_loop(index_schdules).await {
+                Ok(_) => (),
+                Err(e) => {
+                    error!("{:?}", e);
+                }
+            }
+        }
+        "cli" => {
+            match centralized_cli_loop(index_schdules).await {
+                Ok(_) => (),
+                Err(e) => {
+                    error!("{:?}", e);
+                }
+            }
+        }
+        other => {
+            error!(
+                "[Error][main()] Invalid COMPILE_TYPE: '{}'. Must be 'schedule' or 'cli'.",
+                other
+            );
+            panic!(
+                "[Error][main()] The 'COMPILE_TYPE' information must be 'schedule' or 'cli'."
+            );
+        }
+    }
+    
     // let query_service: Arc<QueryServicePub> = Arc::new(QueryServicePub::new());
     // let es_query_service: Arc<EsQueryServicePub> = Arc::new(EsQueryServicePub::new());
     // let controller: MainController<QueryServicePub, EsQueryServicePub>
