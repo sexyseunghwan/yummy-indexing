@@ -2,17 +2,19 @@ use crate::common::*;
 
 use crate::configuration::index_schedules_config::*;
 
+use crate::models::auto_complete::*;
+use crate::models::store_auto_complete::StoreAutoComplete;
 use crate::models::store_to_elastic::*;
 use crate::models::store_types::*;
-use crate::models::auto_complete::*;
 
 use crate::repository::mysql_repository::*;
 
 use crate::utils_module::time_utils::*;
 
 use crate::entity::{
-    elastic_index_info_tbl, recommend_tbl, store, store_location_info_tbl, store_recommend_tbl,
-    store_type_link_tbl, store_type_major, store_type_sub, zero_possible_market,
+    elastic_index_info_tbl, location_city_tbl, location_county_tbl, location_district_tbl,
+    recommend_tbl, store, store_location_info_tbl, store_recommend_tbl, store_type_link_tbl,
+    store_type_major, store_type_sub, zero_possible_market,
 };
 
 pub trait QueryService {
@@ -51,11 +53,11 @@ pub trait QueryService {
         &self,
         store_seqs: Option<Vec<i32>>,
     ) -> Result<StoreTypesMap, anyhow::Error>;
-    async fn get_store_name_distinct_by_batch(
+    async fn get_store_name_by_batch(
         &self,
-        index_schedule: &IndexSchedules
-    ) -> Result<Vec<AutoComplete>, anyhow::Error>;
-    // AutoComplete
+        index_schedule: &IndexSchedules,
+    ) -> Result<Vec<StoreAutoComplete>, anyhow::Error>;
+    async fn get_locations_name(&self) -> Result<Vec<String>, anyhow::Error>;
 }
 
 #[derive(Debug, new)]
@@ -476,46 +478,41 @@ impl QueryService for QueryServicePub {
         Ok(store_types_map)
     }
 
-    #[doc = ""]
+    #[doc = "상점이름만 리턴해주는 함수"]
     /// # Arguments
     /// * `index_schedule` - 인덱스 스케쥴 정보
     ///
     /// # Returns
-    /// * Result<Vec<AutoComplete>, anyhow::Error>
-    async fn get_store_name_distinct_by_batch(
+    /// * Result<Vec<StoreAutoComplete>, anyhow::Error>
+    async fn get_store_name_by_batch(
         &self,
-        index_schedule: &IndexSchedules
-    ) -> Result<Vec<AutoComplete>, anyhow::Error> {
+        index_schedule: &IndexSchedules,
+    ) -> Result<Vec<StoreAutoComplete>, anyhow::Error> {
         let db: &DatabaseConnection = establish_connection().await;
 
         let batch_size: usize = index_schedule.sql_batch_size;
 
-        let mut total_auto_complete_list: Vec<AutoComplete> = Vec::new();
+        let mut total_auto_complete_list: Vec<StoreAutoComplete> = Vec::new();
         let mut last_seq: Option<i32> = None;
 
         loop {
-            
             let mut query: Select<store::Entity> = store::Entity::find()
                 .order_by_asc(store::Column::Seq)
                 .limit(batch_size as u64)
                 .select_only()
-                .columns([
-                    store::Column::Seq,
-                    store::Column::Name
-                    ] 
-                )
+                .columns([store::Column::Seq, store::Column::Name])
                 .filter(store::Column::UseYn.eq("Y"));
-            
+
             if let Some(seq) = last_seq {
                 query = query.filter(store::Column::Seq.gt(seq)); /* `seq`가 마지막 값보다 큰 데이터 가져오기 */
             }
 
-            let mut auto_completes: Vec<AutoComplete> = query.into_model().all(db).await?;
+            let mut auto_completes: Vec<StoreAutoComplete> = query.into_model().all(db).await?;
 
             if auto_completes.is_empty() {
                 break;
             }
-            
+
             total_auto_complete_list.append(&mut auto_completes);
 
             last_seq = total_auto_complete_list.last().map(|s| s.seq);
@@ -524,4 +521,38 @@ impl QueryService for QueryServicePub {
         Ok(total_auto_complete_list)
     }
 
+    #[doc = "지역이름만 리턴해주는 함수"]
+    async fn get_locations_name(&self) -> Result<Vec<String>, anyhow::Error> {
+        let mut locations_list: Vec<String> = Vec::new();
+
+        let db: &DatabaseConnection = establish_connection().await;
+
+        /* 시/도 이름 */
+        let county_query: Select<location_county_tbl::Entity> = location_county_tbl::Entity::find()
+            .select_only()
+            .column(location_county_tbl::Column::LocationCounty);
+
+        let mut county_list: Vec<String> = county_query.into_tuple().all(db).await?;
+
+        /* 구/군 이름 */
+        let city_query: Select<location_city_tbl::Entity> = location_city_tbl::Entity::find()
+            .select_only()
+            .column(location_city_tbl::Column::LocationCity);
+
+        let mut city_list: Vec<String> = city_query.into_tuple().all(db).await?;
+
+        /* 음면동 이름 */
+        let district_query: Select<location_district_tbl::Entity> =
+            location_district_tbl::Entity::find()
+                .select_only()
+                .column(location_district_tbl::Column::LocationDistrict);
+
+        let mut district_list: Vec<String> = district_query.into_tuple().all(db).await?;
+
+        locations_list.append(&mut county_list);
+        locations_list.append(&mut city_list);
+        locations_list.append(&mut district_list);
+
+        Ok(locations_list)
+    }
 }

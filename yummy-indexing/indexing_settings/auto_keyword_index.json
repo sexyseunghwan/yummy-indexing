@@ -83,23 +83,15 @@
     },
     "mappings": {
         "properties": {
-            "seq": {
-                "type": "integer"
-            },
             "name": {
                 "type": "text",
-                "fields": {
-                    "autocomplete": {
-                        "type": "text",
-                        "analyzer": "edge_ngram_analyzer",
-                        "search_analyzer": "token_search_analyzer"
-                    },
-                    "chosung": {
-                        "type": "text",
-                        "analyzer": "chosung_index_analyzer",
-                        "search_analyzer": "chosung_search_analyzer"
-                    }
-                }
+                "analyzer": "edge_ngram_analyzer",
+                "search_analyzer": "token_search_analyzer"
+            },
+            "name_chosung": {
+                "type": "text",
+                "analyzer": "chosung_index_analyzer",
+                "search_analyzer": "chosung_search_analyzer"
             }
         }
     }

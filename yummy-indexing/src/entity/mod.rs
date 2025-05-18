@@ -3,6 +3,9 @@
 pub mod prelude;
 
 pub mod elastic_index_info_tbl;
+pub mod location_city_tbl;
+pub mod location_county_tbl;
+pub mod location_district_tbl;
 pub mod migrations;
 pub mod recommend_tbl;
 pub mod store;

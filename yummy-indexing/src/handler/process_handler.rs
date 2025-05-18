@@ -1,13 +1,15 @@
 use crate::common::*;
 
+use crate::services::analyzer_service::*;
 use crate::services::es_query_service::*;
 use crate::services::query_service::*;
 
 use crate::configuration::{index_schedules_config::*, system_config::*};
 
+use crate::models::auto_complete::*;
+use crate::models::store_auto_complete::*;
 use crate::models::store_to_elastic::*;
 use crate::models::store_types::*;
-use crate::models::auto_complete::*;
 
 use crate::utils_module::time_utils::*;
 
@@ -15,14 +17,19 @@ use crate::utils_module::time_utils::*;
 pub struct ProcessHandler<
     Q: QueryService + Sync + Send + 'static,
     E: EsQueryService + Sync + Send + 'static,
+    A: AnalyzerService + Sync + Send + 'static,
 > {
     query_service: Q,
     es_query_service: E,
+    analyzer_service: A,
 }
 
-impl<Q: QueryService + Sync + Send + 'static, E: EsQueryService + Sync + Send + 'static>
-    ProcessHandler<Q, E> {
-    
+impl<
+        Q: QueryService + Sync + Send + 'static,
+        E: EsQueryService + Sync + Send + 'static,
+        A: AnalyzerService + Sync + Send + 'static,
+    > ProcessHandler<Q, E, A>
+{
     #[doc = "메인 작업 함수 -> 색인 진행 함수"]
     /// # Arguments
     /// * `index_schedule` - 인덱스 스케쥴 객체
@@ -193,6 +200,29 @@ impl<Q: QueryService + Sync + Send + 'static, E: EsQueryService + Sync + Send + 
         Ok(())
     }
 
+
+    #[doc = "입력된 항목 리스트에서 초성(Chosung)을 추출하여 `AutoComplete` 리스트로 변환한다."]
+    /// # Arguments
+    /// * `items` - 문자열로 변환 가능한 항목들의 반복 가능한 컬렉션
+    /// * `to_string` - 각 항목을 `String`으로 변환하는 함수
+    ///
+    /// # Returns
+    /// * Vec<AutoComplete> 
+    fn to_auto_complete_list<T>(
+        &self,
+        items: impl IntoIterator<Item = T>,
+        to_string: impl Fn(T) -> String,
+    ) -> Vec<AutoComplete> {
+        items
+            .into_iter()
+            .map(|item| {
+                let name: String = to_string(item);
+                let chosung: String = self.analyzer_service.extract_chosung(&name);
+                AutoComplete::new(name, chosung)
+            })
+            .collect()
+    }
+
     #[doc = "자동완성 키워드 정적색인 함수"]
     /// # Arguments
     /// * `index_schedule` - 인덱스 스케쥴 객체
@@ -205,9 +235,27 @@ impl<Q: QueryService + Sync + Send + 'static, E: EsQueryService + Sync + Send + 
     ) -> Result<(), anyhow::Error> {
         /* 현재기준 UTC 시간 */
         let cur_utc_date: NaiveDateTime = get_current_utc_naive_datetime();
-        
+
         /* 자동완성 키워드 데이터 리스트 */
-        let auto_completes: Vec<AutoComplete> = self.query_service.get_store_name_distinct_by_batch(&index_schedule).await?;
+        let mut auto_completes: Vec<AutoComplete> = Vec::new();
+
+        /* 1. 상점 이름 리스트 */
+        let store_auto_complete: Vec<StoreAutoComplete> = self
+            .query_service
+            .get_store_name_by_batch(&index_schedule)
+            .await?;
+
+        let mut auto_complete_store: Vec<AutoComplete> =
+            self.to_auto_complete_list(store_auto_complete, |s: StoreAutoComplete| s.name);
+
+        /* 2. 지역이름 키워드 데이터 리스트 */
+        let location_auto_complete: Vec<String> = self.query_service.get_locations_name().await?;
+
+        let mut auto_complete_location: Vec<AutoComplete> = 
+            self.to_auto_complete_list(location_auto_complete, |s: String| s);
+
+        auto_completes.append(&mut auto_complete_store);
+        auto_completes.append(&mut auto_complete_location);
 
         /* Elasticsearch 에 데이터 색인. */
         self.es_query_service
@@ -216,12 +264,12 @@ impl<Q: QueryService + Sync + Send + 'static, E: EsQueryService + Sync + Send + 
                 &auto_completes,
             )
             .await?;
-        
+
         /* 색인시간 최신화 */
         self.query_service
             .update_recent_date_to_elastic_index_info(&index_schedule, cur_utc_date)
             .await?;
-        
+
         Ok(())
     }
 }

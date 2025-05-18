@@ -4,6 +4,7 @@ use crate::handler::process_handler::*;
 
 use crate::configuration::index_schedules_config::*;
 
+use crate::services::analyzer_service::*;
 use crate::services::es_query_service::*;
 use crate::services::query_service::*;
 
@@ -18,8 +19,9 @@ pub async fn centralized_cli_loop(
 ) -> Result<(), anyhow::Error> {
     let query_service: QueryServicePub = QueryServicePub::new();
     let es_query_service: EsQueryServicePub = EsQueryServicePub::new();
-    let process_handler: ProcessHandler<QueryServicePub, EsQueryServicePub> =
-        ProcessHandler::new(query_service, es_query_service);
+    let analyzer_service: AnalyzerServicePub = AnalyzerServicePub::new();
+    let process_handler: ProcessHandler<QueryServicePub, EsQueryServicePub, AnalyzerServicePub> =
+        ProcessHandler::new(query_service, es_query_service, analyzer_service);
 
     let mut stdout: io::Stdout = io::stdout();
 
@@ -47,11 +49,10 @@ pub async fn centralized_cli_loop(
     }
 
     loop {
-        
         writeln!(stdout, "\n").expect("[Error][centralized_cli_loop] Standard Output Error. 4");
         write!(stdout, "Please enter your number: ")
             .expect("[Error][centralized_cli_loop] Standard Output Error. 5");
-        
+
         stdout
             .flush()
             .expect("[Error][centralized_cli_loop] Standard Output Error. 6");
@@ -64,14 +65,17 @@ pub async fn centralized_cli_loop(
         match input.trim().parse::<i32>() {
             Ok(number) => {
                 if number > 0 && number <= idx {
-                    let index: &IndexSchedules = match index_schedules.index().get((number - 1) as usize) {
+                    let index: &IndexSchedules = match index_schedules
+                        .index()
+                        .get((number - 1) as usize)
+                    {
                         Some(index) => index,
                         None => {
                             error!("[Error][entralized_cli_loop] No {} index information exists in `index_schedules`.", number);
                             continue;
-                        } 
+                        }
                     };
-                    
+
                     /* 여기서 색인 작업을 진행해준다. */
                     match process_handler.main_indexing_task(index.clone()).await {
                         Ok(_) => (),
@@ -82,7 +86,7 @@ pub async fn centralized_cli_loop(
                             break;
                         }
                     }
-                    
+
                     writeln!(stdout, "Indexing operation completed.")
                         .expect("[Error][centralized_cli_loop] Standard Output Error. 8");
 

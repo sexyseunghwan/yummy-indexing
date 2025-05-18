@@ -2,6 +2,7 @@ use crate::common::*;
 
 use crate::configuration::index_schedules_config::*;
 
+use crate::services::analyzer_service::*;
 use crate::services::es_query_service::*;
 use crate::services::query_service::*;
 
@@ -19,8 +20,14 @@ pub async fn centralized_schedule_loop(
     /* Service 및 Handler 초기화 */
     let query_service: QueryServicePub = QueryServicePub::new();
     let es_query_service: EsQueryServicePub = EsQueryServicePub::new();
-    let process_handler: Arc<ProcessHandler<QueryServicePub, EsQueryServicePub>> =
-        Arc::new(ProcessHandler::new(query_service, es_query_service));
+    let analyzer_service: AnalyzerServicePub = AnalyzerServicePub::new();
+    let process_handler: Arc<
+        ProcessHandler<QueryServicePub, EsQueryServicePub, AnalyzerServicePub>,
+    > = Arc::new(ProcessHandler::new(
+        query_service,
+        es_query_service,
+        analyzer_service,
+    ));
 
     let mut interval: Interval = tokio::time::interval(Duration::from_millis(1000)); /* 1초마다 체크 */
 
@@ -56,8 +63,9 @@ pub async fn centralized_schedule_loop(
             if let Some(schedule) = schedule_map.get(&key) {
                 if let Some(next) = schedule.upcoming(kst_offset).take(1).next() {
                     if (next - now_kst).num_seconds() < 1 {
-                        let arc_handler: Arc<ProcessHandler<QueryServicePub, EsQueryServicePub>> =
-                            Arc::clone(&process_handler);
+                        let arc_handler: Arc<
+                            ProcessHandler<QueryServicePub, EsQueryServicePub, AnalyzerServicePub>,
+                        > = Arc::clone(&process_handler);
                         let index_clone: IndexSchedules = index.clone();
 
                         tokio::spawn(async move {
