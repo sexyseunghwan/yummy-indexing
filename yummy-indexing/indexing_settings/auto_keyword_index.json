@@ -57,6 +57,14 @@
                         "lowercase",
                         "trim"
                     ]
+                },
+                "korean": {
+                    "filter" : [
+                        "stop_filtering",
+                        "synonym_filtering"
+                        ],
+                    "type": "custom",
+                    "tokenizer": "nori_tokenizer_with_user_dictionary"
                 }
             },
             "filter": {
@@ -71,12 +79,26 @@
                     "min_gram" : "1",
                     "max_gram" : "50",
                     "side" : "front"
+                },
+                "synonym_filtering": {
+                    "type": "synonym",
+                    "lenient": true,
+                    "synonyms_path": "config/yummy/synonym.txt"
+                },
+                "stop_filtering": {
+                    "type": "stop",
+                    "stopwords_path": "config/yummy/stop_words.txt"
                 }
             },
             "tokenizer": {
                 "edge_ngram_tokenizer": {
                     "type": "edge_ngram",
                     "token_chars": ["letter", "digit"]
+                },
+                "nori_tokenizer_with_user_dictionary": {
+                    "type": "nori_tokenizer",
+                    "decompound_mode": "mixed",
+                    "user_dictionary": "config/yummy/user_dic.txt"  
                 }
             }
         }
@@ -85,8 +107,18 @@
         "properties": {
             "name": {
                 "type": "text",
-                "analyzer": "edge_ngram_analyzer",
-                "search_analyzer": "token_search_analyzer"
+                "fields": {
+                    "autocomplete": {
+                        "type": "text",
+                        "analyzer": "edge_ngram_analyzer",
+                        "search_analyzer": "edge_ngram_analyzer"
+                    },
+                    "basic": {
+                        "type": "text",
+                        "analyzer": "korean",
+                        "search_analyzer": "korean"
+                    }
+                }
             },
             "name_chosung": {
                 "type": "text",
