@@ -8,6 +8,7 @@ use crate::configuration::{index_schedules_config::*, system_config::*};
 
 use crate::models::auto_complete::*;
 use crate::models::store_auto_complete::*;
+use crate::models::auto_search_keyword::*;
 use crate::models::store_to_elastic::*;
 use crate::models::store_types::*;
 
@@ -212,13 +213,17 @@ impl<
         &self,
         items: impl IntoIterator<Item = T>,
         to_string: impl Fn(T) -> String,
-    ) -> Vec<AutoComplete> {
+        to_integer: impl Fn(T) -> i32,
+    ) -> Vec<AutoComplete>
+    where T: Clone
+    {
         items
             .into_iter()
             .map(|item| {
-                let name: String = to_string(item);
+                let name: String = to_string(item.clone());
                 let chosung: String = self.analyzer_service.extract_chosung(&name);
-                AutoComplete::new(name, chosung)
+                let keyword_weight: i32 = to_integer(item.clone());
+                AutoComplete::new(name, chosung, keyword_weight)
             })
             .collect()
     }
@@ -238,24 +243,38 @@ impl<
 
         /* 자동완성 키워드 데이터 리스트 */
         let mut auto_completes: Vec<AutoComplete> = Vec::new();
-
+        
+        /* 1. 자동 완성 키워드 */
+        let auto_keyword_list: Vec<AutoSearchKeyword> = 
+            self.query_service.get_auto_search_keyword_by_batch(&index_schedule).await?;
+        
+        let mut auto_complete_keyword: Vec<AutoComplete> =
+            self.to_auto_complete_list(
+                auto_keyword_list,  
+                |a: AutoSearchKeyword| a.keyword, 
+                |a: AutoSearchKeyword| a.keyword_weight);
+        
+        auto_completes.append(&mut auto_complete_keyword);
         /* 1. 상점 이름 리스트 */
-        let store_auto_complete: Vec<StoreAutoComplete> = self
-            .query_service
-            .get_store_name_by_batch(&index_schedule)
-            .await?;
+        // let store_auto_complete: Vec<StoreAutoComplete> = self
+        //     .query_service
+        //     .get_store_name_by_batch(&index_schedule)
+        //     .await?;
 
-        let mut auto_complete_store: Vec<AutoComplete> =
-            self.to_auto_complete_list(store_auto_complete, |s: StoreAutoComplete| s.name);
+        // let mut auto_complete_store: Vec<AutoComplete> =
+        //     self.to_auto_complete_list(store_auto_complete, |s: StoreAutoComplete| s.name);
 
-        /* 2. 지역이름 키워드 데이터 리스트 */
-        let location_auto_complete: Vec<String> = self.query_service.get_locations_name().await?;
+        // /* 2. 지역이름 키워드 데이터 리스트 */
+        // let location_auto_complete: Vec<String> = self.query_service.get_locations_name().await?;
 
-        let mut auto_complete_location: Vec<AutoComplete> = 
-            self.to_auto_complete_list(location_auto_complete, |s: String| s);
+        // let mut auto_complete_location: Vec<AutoComplete> = 
+        //     self.to_auto_complete_list(location_auto_complete, |s: String| s);
 
-        auto_completes.append(&mut auto_complete_store);
-        auto_completes.append(&mut auto_complete_location);
+        // auto_completes.append(&mut auto_complete_store);
+        // auto_completes.append(&mut auto_complete_location);
+
+        /* 자동완성 키워드 데이터 리스트 */
+        //let mut auto_completes: Vec<AutoComplete> = Vec::new();
 
         /* Elasticsearch 에 데이터 색인. */
         self.es_query_service

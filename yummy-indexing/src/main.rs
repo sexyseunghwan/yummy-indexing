@@ -48,7 +48,7 @@ mod entity;
 async fn main() {
     set_global_logger();
     load_env();
-
+    
     info!("Yummy Indexing Batch Program Start");
 
     /* Elasticsearch connection 정보 전역화 */

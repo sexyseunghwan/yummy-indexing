@@ -19,3 +19,4 @@ pub mod store_type_sub;
 pub mod users;
 pub mod zero_possible_market;
 pub mod zero_possible_market_backup;
+pub mod auto_search_keyword_tbl;

@@ -6,6 +6,8 @@ use crate::models::auto_complete::*;
 use crate::models::store_auto_complete::StoreAutoComplete;
 use crate::models::store_to_elastic::*;
 use crate::models::store_types::*;
+use crate::models::auto_search_keyword::*;
+
 
 use crate::repository::mysql_repository::*;
 
@@ -14,7 +16,7 @@ use crate::utils_module::time_utils::*;
 use crate::entity::{
     elastic_index_info_tbl, location_city_tbl, location_county_tbl, location_district_tbl,
     recommend_tbl, store, store_location_info_tbl, store_recommend_tbl, store_type_link_tbl,
-    store_type_major, store_type_sub, zero_possible_market,
+    store_type_major, store_type_sub, zero_possible_market, auto_search_keyword_tbl
 };
 
 pub trait QueryService {
@@ -58,6 +60,7 @@ pub trait QueryService {
         index_schedule: &IndexSchedules,
     ) -> Result<Vec<StoreAutoComplete>, anyhow::Error>;
     async fn get_locations_name(&self) -> Result<Vec<String>, anyhow::Error>;
+    async fn get_auto_search_keyword_by_batch(&self, index_schedule: &IndexSchedules) -> Result<Vec<AutoSearchKeyword>, anyhow::Error>;
 }
 
 #[derive(Debug, new)]
@@ -554,5 +557,46 @@ impl QueryService for QueryServicePub {
         locations_list.append(&mut district_list);
 
         Ok(locations_list)
+    }
+    
+    #[doc = "자동완성/연관검색어 데이터를 가져오기 위한 함수"]
+    /// # Arguments
+    /// * `index_schedule` - 인덱스 스케쥴 정보
+    ///
+    /// # Returns
+    /// * Result<Vec<AutoSearchKeyword>, anyhow::Error>
+    async fn get_auto_search_keyword_by_batch(&self, index_schedule: &IndexSchedules) -> Result<Vec<AutoSearchKeyword>, anyhow::Error> {
+        
+        let db: &DatabaseConnection = establish_connection().await;
+
+        let batch_size: usize = index_schedule.sql_batch_size;
+        let mut total_auto_search_keywords: Vec<AutoSearchKeyword> = Vec::new();
+        let mut last_key: Option<String> = None;
+        
+        loop {
+
+            let mut query: Select<auto_search_keyword_tbl::Entity> = auto_search_keyword_tbl::Entity::find()
+                .order_by_asc(auto_search_keyword_tbl::Column::Keyword)
+                .limit(batch_size as u64)
+                .columns([
+                    auto_search_keyword_tbl::Column::Keyword,
+                    auto_search_keyword_tbl::Column::KeywordWeight
+                ]);
+            
+            if let Some(ref last_key) = last_key {
+                query = query.filter(auto_search_keyword_tbl::Column::Keyword.gt(last_key));
+            }
+            
+            let mut select_list: Vec<AutoSearchKeyword> = query.into_model().all(db).await?;
+
+            if select_list.is_empty() {
+                break;
+            }
+
+            total_auto_search_keywords.append(&mut select_list);
+            last_key = total_auto_search_keywords.last().map(|a| a.keyword.clone());
+        }
+        
+        Ok(total_auto_search_keywords)
     }
 }

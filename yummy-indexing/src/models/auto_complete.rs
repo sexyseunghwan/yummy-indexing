@@ -5,4 +5,5 @@ use crate::common::*;
 pub struct AutoComplete {
     pub name: String,
     pub name_chosung: String,
+    pub keyword_weight: i32
 }

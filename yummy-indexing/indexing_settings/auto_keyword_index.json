@@ -124,6 +124,9 @@
                 "type": "text",
                 "analyzer": "chosung_index_analyzer",
                 "search_analyzer": "chosung_search_analyzer"
+            },
+            "keyword_weight": {
+                "type": "integer"
             }
         }
     }
