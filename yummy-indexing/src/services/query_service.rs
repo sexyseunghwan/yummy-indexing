@@ -2,8 +2,10 @@ use crate::common::*;
 
 use crate::configuration::index_schedules_config::*;
 
+use crate::entity::category_tbl;
+use crate::entity::store_category_tbl;
 use crate::models::auto_complete::*;
-use crate::models::store_auto_complete::StoreAutoComplete;
+use crate::models::store_auto_complete::*;
 use crate::models::store_to_elastic::*;
 use crate::models::store_types::*;
 use crate::models::auto_search_keyword::*;
@@ -15,8 +17,8 @@ use crate::utils_module::time_utils::*;
 
 use crate::entity::{
     elastic_index_info_tbl, location_city_tbl, location_county_tbl, location_district_tbl,
-    recommend_tbl, store, store_location_info_tbl, store_recommend_tbl, store_type_link_tbl,
-    store_type_major, store_type_sub, zero_possible_market, auto_search_keyword_tbl
+    recommend_tbl, store, store_location_info_tbl, store_recommend_tbl,
+    zero_possible_market, auto_search_keyword_tbl,store_location_road_info_tbl
 };
 
 pub trait QueryService {
@@ -51,10 +53,10 @@ pub trait QueryService {
         index_schedule: &IndexSchedules,
         new_datetime: NaiveDateTime,
     ) -> Result<(), anyhow::Error>;
-    async fn get_store_types(
-        &self,
-        store_seqs: Option<Vec<i32>>,
-    ) -> Result<StoreTypesMap, anyhow::Error>;
+    // async fn get_store_types(
+    //     &self,
+    //     store_seqs: Option<Vec<i32>>,
+    // ) -> Result<StoreTypesMap, anyhow::Error>;
     async fn get_store_name_by_batch(
         &self,
         index_schedule: &IndexSchedules,
@@ -88,8 +90,13 @@ impl QueryService for QueryServicePub {
 
         loop {
             let mut query: Select<store::Entity> = store::Entity::find()
-                .inner_join(store_type_link_tbl::Entity)
                 .inner_join(store_location_info_tbl::Entity)
+                .inner_join(store_location_road_info_tbl::Entity)
+                .inner_join(store_category_tbl::Entity)
+                .join(
+                    JoinType::InnerJoin
+                    , store_category_tbl::Relation::CategoryTbl.def()
+                )
                 .left_join(zero_possible_market::Entity)
                 .left_join(store_recommend_tbl::Entity)
                 .join(
@@ -138,19 +145,11 @@ impl QueryService for QueryServicePub {
                 .column_as(store_location_info_tbl::Column::Address, "address")
                 .column_as(store_location_info_tbl::Column::Lat, "lat")
                 .column_as(store_location_info_tbl::Column::Lng, "lng")
+                .column_as(store_location_road_info_tbl::Column::Address, "road_address")
                 .column_as(recommend_tbl::Column::RecommendName, "recommend_name")
-                .column_as(
-                    store_location_info_tbl::Column::LocationCity,
-                    "location_city",
-                )
-                .column_as(
-                    store_location_info_tbl::Column::LocationCounty,
-                    "location_county",
-                )
-                .column_as(
-                    store_location_info_tbl::Column::LocationDistrict,
-                    "location_district",
-                )
+                .column_as(category_tbl::Column::CategoryGroupName, "category_group_name")
+                .column_as(category_tbl::Column::CategoryGroupCode, "category_group_code")
+                .column_as(category_tbl::Column::CategoryName, "category_name")
                 .filter(query_filter.clone());
 
             if let Some(seq) = last_seq {
@@ -268,18 +267,47 @@ impl QueryService for QueryServicePub {
                     )
                     .add(
                         Expr::col((
-                            store_type_link_tbl::Entity,
-                            store_type_link_tbl::Column::ChgDt,
+                            store_location_road_info_tbl::Entity,
+                            store_location_road_info_tbl::Column::ChgDt,
                         ))
                         .gt(recent_datetime),
                     )
                     .add(
                         Expr::col((
-                            store_type_link_tbl::Entity,
-                            store_type_link_tbl::Column::RegDt,
+                            store_location_road_info_tbl::Entity,
+                            store_location_road_info_tbl::Column::RegDt,
                         ))
                         .gt(recent_datetime),
-                    ),
+                    )
+                    .add(
+                        Expr::col((
+                            store_category_tbl::Entity,
+                            store_category_tbl::Column::ChgDt,
+                        ))
+                        .gt(recent_datetime),
+                    )
+                    .add(
+                        Expr::col((
+                            store_category_tbl::Entity,
+                            store_category_tbl::Column::RegDt,
+                        ))
+                        .gt(recent_datetime),
+                    )
+                    .add(
+                        Expr::col((
+                            category_tbl::Entity,
+                            category_tbl::Column::ChgDt,
+                        ))
+                        .gt(recent_datetime),
+                    )
+                    .add(
+                        Expr::col((
+                            category_tbl::Entity,
+                            category_tbl::Column::RegDt,
+                        ))
+                        .gt(recent_datetime),
+                    )
+                    
             );
 
         /* 중복이 존재하는 store 리스트 */
@@ -293,7 +321,7 @@ impl QueryService for QueryServicePub {
 
         Ok(stores_distinct)
     }
-
+    
     #[doc = "색인할 Store 정보를 조회해주는 함수 -> 중복 제거"]
     /// # Arguments
     /// * `stores` - store 데이터 객체 리스트
@@ -324,17 +352,16 @@ impl QueryService for QueryServicePub {
                         store.name.clone(),
                         store.r#type.clone(),
                         store.address.clone(),
+                        store.road_address.clone(),
                         store.lat,
                         store.lng,
                         store.zero_possible,
                         store.recommend_name.clone().map_or(vec![], |r| vec![r]),
-                        store.location_city.clone(),
-                        store.location_county.clone(),
-                        store.location_district.clone(),
-                        Vec::new(),
-                        Vec::new(),
                         store.tel.clone(),
                         store.url.clone(),
+                        store.category_group_name.clone(),
+                        store.category_group_code.clone(),
+                        store.category_name.clone()
                     )
                 });
         }
@@ -404,82 +431,82 @@ impl QueryService for QueryServicePub {
         Ok(())
     }
 
-    #[doc = "음식점 정보와 맵핑되는 대분류, 소분류 정보를 모두 가져와 준다."]
-    /// # Arguments
-    /// * `store_seqs` - 상점 고유번호 리스트
-    ///
-    /// # Returns
-    /// * Result<StoreTypesMap, anyhow::Error>
-    async fn get_store_types(
-        &self,
-        store_seqs: Option<Vec<i32>>,
-    ) -> Result<StoreTypesMap, anyhow::Error> {
-        let db: &DatabaseConnection = establish_connection().await;
+    // #[doc = "음식점 정보와 맵핑되는 대분류, 소분류 정보를 모두 가져와 준다."]
+    // /// # Arguments
+    // /// * `store_seqs` - 상점 고유번호 리스트
+    // ///
+    // /// # Returns
+    // /// * Result<StoreTypesMap, anyhow::Error>
+    // async fn get_store_types(
+    //     &self,
+    //     store_seqs: Option<Vec<i32>>,
+    // ) -> Result<StoreTypesMap, anyhow::Error> {
+    //     let db: &DatabaseConnection = establish_connection().await;
 
-        let query_filter: Condition = if let Some(seqs) = store_seqs {
-            Condition::any().add(store::Column::Seq.is_in(seqs))
-        } else {
-            Condition::all()
-        };
+    //     let query_filter: Condition = if let Some(seqs) = store_seqs {
+    //         Condition::any().add(store::Column::Seq.is_in(seqs))
+    //     } else {
+    //         Condition::all()
+    //     };
 
-        let query: Select<store::Entity> = store::Entity::find()
-            .join(JoinType::InnerJoin, store::Relation::StoreTypeLinkTbl.def())
-            .join(
-                JoinType::InnerJoin,
-                store_type_link_tbl::Relation::StoreTypeSub.def(),
-            )
-            .join(
-                JoinType::InnerJoin,
-                store_type_sub::Relation::StoreTypeMajor.def(),
-            )
-            .select_only()
-            .columns([store::Column::Seq])
-            .column_as(store_type_sub::Column::SubType, "sub_type")
-            .column_as(store_type_major::Column::MajorType, "major_type")
-            .filter(query_filter);
+    //     let query: Select<store::Entity> = store::Entity::find()
+    //         .join(JoinType::InnerJoin, store::Relation::StoreTypeLinkTbl.def())
+    //         .join(
+    //             JoinType::InnerJoin,
+    //             store_type_link_tbl::Relation::StoreTypeSub.def(),
+    //         )
+    //         .join(
+    //             JoinType::InnerJoin,
+    //             store_type_sub::Relation::StoreTypeMajor.def(),
+    //         )
+    //         .select_only()
+    //         .columns([store::Column::Seq])
+    //         .column_as(store_type_sub::Column::SubType, "sub_type")
+    //         .column_as(store_type_major::Column::MajorType, "major_type")
+    //         .filter(query_filter);
 
-        let store_types_result: Vec<StoreTypesResult> = query.into_model().all(db).await?;
+    //     let store_types_result: Vec<StoreTypesResult> = query.into_model().all(db).await?;
 
-        let mut store_type_major_map: HashMap<i32, Vec<i32>> = HashMap::new();
-        let mut store_type_sub_map: HashMap<i32, Vec<i32>> = HashMap::new();
+    //     let mut store_type_major_map: HashMap<i32, Vec<i32>> = HashMap::new();
+    //     let mut store_type_sub_map: HashMap<i32, Vec<i32>> = HashMap::new();
 
-        /* 중복체크를 위한 HashSet */
-        let mut major_seen: HashMap<i32, HashSet<i32>> = HashMap::new();
-        let mut sub_seen: HashMap<i32, HashSet<i32>> = HashMap::new();
+    //     /* 중복체크를 위한 HashSet */
+    //     let mut major_seen: HashMap<i32, HashSet<i32>> = HashMap::new();
+    //     let mut sub_seen: HashMap<i32, HashSet<i32>> = HashMap::new();
 
-        for store in &store_types_result {
-            store_type_major_map
-                .entry(store.seq)
-                .or_insert_with(Vec::new);
+    //     for store in &store_types_result {
+    //         store_type_major_map
+    //             .entry(store.seq)
+    //             .or_insert_with(Vec::new);
 
-            major_seen.entry(store.seq).or_insert_with(HashSet::new);
+    //         major_seen.entry(store.seq).or_insert_with(HashSet::new);
 
-            if let Some(major_types) = store_type_major_map.get_mut(&store.seq) {
-                if let Some(major_set) = major_seen.get_mut(&store.seq) {
-                    if major_set.insert(store.major_type) {
-                        major_types.push(store.major_type);
-                    }
-                }
-            }
+    //         if let Some(major_types) = store_type_major_map.get_mut(&store.seq) {
+    //             if let Some(major_set) = major_seen.get_mut(&store.seq) {
+    //                 if major_set.insert(store.major_type) {
+    //                     major_types.push(store.major_type);
+    //                 }
+    //             }
+    //         }
 
-            store_type_sub_map.entry(store.seq).or_insert_with(Vec::new);
+    //         store_type_sub_map.entry(store.seq).or_insert_with(Vec::new);
 
-            sub_seen.entry(store.seq).or_insert_with(HashSet::new);
+    //         sub_seen.entry(store.seq).or_insert_with(HashSet::new);
 
-            if let Some(sub_types) = store_type_sub_map.get_mut(&store.seq) {
-                if let Some(sub_set) = sub_seen.get_mut(&store.seq) {
-                    if sub_set.insert(store.sub_type) {
-                        sub_types.push(store.sub_type);
-                    }
-                }
-            }
-        }
+    //         if let Some(sub_types) = store_type_sub_map.get_mut(&store.seq) {
+    //             if let Some(sub_set) = sub_seen.get_mut(&store.seq) {
+    //                 if sub_set.insert(store.sub_type) {
+    //                     sub_types.push(store.sub_type);
+    //                 }
+    //             }
+    //         }
+    //     }
 
-        let store_types_map: StoreTypesMap =
-            StoreTypesMap::new(store_type_major_map, store_type_sub_map);
+    //     let store_types_map: StoreTypesMap =
+    //         StoreTypesMap::new(store_type_major_map, store_type_sub_map);
 
-        Ok(store_types_map)
-    }
+    //     Ok(store_types_map)
+    // }
 
     #[doc = "상점이름만 리턴해주는 함수"]
     /// # Arguments

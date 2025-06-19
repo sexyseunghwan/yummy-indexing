@@ -9,11 +9,11 @@ History     : 2025-02-20 Seunghwan Shin       # [v.1.0.0] first create
                                                           2) 음식점 분류타입 색인에 추가
               2025-03-17 Seunghwan Shin       # [v.2.2.0] dotenv -> dotenvy 로 변경
               2025-05-07 Seunghwan Shin       # [v.2.3.0] store 테이블 tel, url 정보 색인에 추가
-              2025-05-00 Seunghwan Shin       # [v.2.4.0]
+              2025-05-15 Seunghwan Shin       # [v.2.4.0]
                                                 1) Elasticsearch connection pool 세마포어로 관리
                                                 2) Centralized Polling 방식으로 전환
+              2025-06-25 Seunghwan Shin       # [v.2.5.0] 테이블 구조변화에 따른 색인 구조 변경
 */
-
 mod common;
 use common::*;
 

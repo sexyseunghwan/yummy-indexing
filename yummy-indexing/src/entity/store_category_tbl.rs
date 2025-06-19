@@ -3,22 +3,21 @@
 use sea_orm::entity::prelude::*;
 
 use crate::entity::store;
-use crate::entity::store_location_info_tbl;
+use crate::entity::store_category_tbl;
+use crate::entity::category_tbl;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]
-#[sea_orm(table_name = "store_location_info_tbl")]
+#[sea_orm(table_name = "store_category_tbl")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub seq: i32,
-    pub address: Option<String>,
-    #[sea_orm(column_type = "Decimal(Some((20, 16)))")]
-    pub lat: Decimal,
-    #[sea_orm(column_type = "Decimal(Some((20, 16)))")]
-    pub lng: Decimal,
+    #[sea_orm(primary_key, auto_increment = false)]
+    pub category_seq: i32,
     pub reg_dt: DateTime,
     pub chg_dt: Option<DateTime>,
     pub reg_id: String,
     pub chg_id: Option<String>
+
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -29,12 +28,26 @@ pub enum Relation {
         to = "super::store::Column::Seq"
     )]
     Store,
+    #[sea_orm(
+        belongs_to = "super::category_tbl::Entity",
+        from = "Column::CategorySeq",
+        to = "super::category_tbl::Column::CategorySeq"
+    )]
+    CategoryTbl
 }
 
-impl Related<store::Entity> for store_location_info_tbl::Entity {
+
+impl Related<store::Entity> for store_category_tbl::Entity {
     fn to() -> RelationDef {
         Relation::Store.def()
     }
 }
+
+impl Related<category_tbl::Entity> for store_category_tbl::Entity {
+    fn to() -> RelationDef {
+        Relation::CategoryTbl.def()
+    }
+}
+
 
 impl ActiveModelBehavior for ActiveModel {}

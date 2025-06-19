@@ -58,45 +58,45 @@ impl<
         Ok(())
     }
 
-    #[doc = "상점분류 정해주는 함수"]
-    /// # Arguments
-    /// * `store_seq` - 인덱스 스케쥴 객체
-    /// * `stores_distinct` - 중복을 제외한 store list
-    ///
-    /// # Returns
-    /// * Result<(), anyhow::Error>
-    async fn handling_store_type(
-        &self,
-        store_seq: Option<Vec<i32>>,
-        stores_distinct: &mut Vec<DistinctStoreResult>,
-    ) -> Result<(), anyhow::Error> {
-        /* store 리스트와 대응되는 상점분류 데이터 가져오기 */
-        let store_types_all: StoreTypesMap = if let Some(seq) = store_seq {
-            self.query_service.get_store_types(Some(seq)).await?
-        } else {
-            self.query_service.get_store_types(None).await?
-        };
+    // #[doc = "상점분류 정해주는 함수"]
+    // /// # Arguments
+    // /// * `store_seq` - 인덱스 스케쥴 객체
+    // /// * `stores_distinct` - 중복을 제외한 store list
+    // ///
+    // /// # Returns
+    // /// * Result<(), anyhow::Error>
+    // async fn handling_store_type(
+    //     &self,
+    //     store_seq: Option<Vec<i32>>,
+    //     stores_distinct: &mut Vec<DistinctStoreResult>,
+    // ) -> Result<(), anyhow::Error> {
+    //     /* store 리스트와 대응되는 상점분류 데이터 가져오기 */
+    //     let store_types_all: StoreTypesMap = if let Some(seq) = store_seq {
+    //         self.query_service.get_store_types(Some(seq)).await?
+    //     } else {
+    //         self.query_service.get_store_types(None).await?
+    //     };
 
-        let store_type_major_map: HashMap<i32, Vec<i32>> = store_types_all.store_type_major_map;
-        let store_type_sub_map: HashMap<i32, Vec<i32>> = store_types_all.store_type_sub_map;
+    //     let store_type_major_map: HashMap<i32, Vec<i32>> = store_types_all.store_type_major_map;
+    //     let store_type_sub_map: HashMap<i32, Vec<i32>> = store_types_all.store_type_sub_map;
 
-        for store_elem in stores_distinct {
-            let seq: i32 = store_elem.seq;
+    //     for store_elem in stores_distinct {
+    //         let seq: i32 = store_elem.seq;
 
-            let major_vec: &Vec<i32> = store_type_major_map
-                .get(&seq)
-                .ok_or_else(|| anyhow!("[Error][handling_store_type()] No 'seq' corresponding to 'store_type_major_map'. seq: {}", seq))?;
+    //         let major_vec: &Vec<i32> = store_type_major_map
+    //             .get(&seq)
+    //             .ok_or_else(|| anyhow!("[Error][handling_store_type()] No 'seq' corresponding to 'store_type_major_map'. seq: {}", seq))?;
 
-            let sub_vec: &Vec<i32> = store_type_sub_map
-                .get(&seq)
-                .ok_or_else(|| anyhow!("[Error][handling_store_type()] No 'seq' corresponding to 'store_type_sub_map'. seq: {}", seq))?;
+    //         let sub_vec: &Vec<i32> = store_type_sub_map
+    //             .get(&seq)
+    //             .ok_or_else(|| anyhow!("[Error][handling_store_type()] No 'seq' corresponding to 'store_type_sub_map'. seq: {}", seq))?;
 
-            store_elem.set_major_type(major_vec.clone());
-            store_elem.set_sub_type(sub_vec.clone());
-        }
+    //         store_elem.set_major_type(major_vec.clone());
+    //         store_elem.set_sub_type(sub_vec.clone());
+    //     }
 
-        Ok(())
-    }
+    //     Ok(())
+    // }
 
     #[doc = "Store 객체를 정적색인 해주는 함수"]
     /// # Arguments
@@ -116,8 +116,8 @@ impl<
             .query_service
             .get_all_store_table(&index_schedule, cur_utc_date)
             .await?;
-
-        self.handling_store_type(None, &mut stores_distinct).await?;
+        
+        //self.handling_store_type(None, &mut stores_distinct).await?;
 
         /* Elasticsearch 에 데이터 색인. */
         self.es_query_service
@@ -178,8 +178,8 @@ impl<
         /* 2. Create */
         let seq_list: Vec<i32> = changed_list.iter().map(|item| item.seq).collect();
 
-        self.handling_store_type(Some(seq_list), &mut changed_list)
-            .await?;
+        // self.handling_store_type(Some(seq_list), &mut changed_list)
+        //     .await?;
 
         if !changed_list.is_empty() {
             self.es_query_service

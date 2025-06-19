@@ -7,17 +7,18 @@ pub struct StoreResult {
     pub name: String,
     pub r#type: Option<String>,
     pub address: Option<String>,
+    pub road_address: Option<String>,
     #[sea_orm(column_type = "Decimal(Some((10, 7)))")]
     pub lat: Decimal,
     #[sea_orm(column_type = "Decimal(Some((10, 7)))")]
     pub lng: Decimal,
     pub zero_possible: bool,
     pub recommend_name: Option<String>,
-    pub location_city: Option<String>,
-    pub location_county: Option<String>,
-    pub location_district: Option<String>,
     pub tel: Option<String>,
     pub url: Option<String>,
+    pub category_group_name: String,
+    pub category_group_code: String,
+    pub category_name: String
 }
 
 #[doc = "Elasticsearch 와 mapping 할 구조체"]
@@ -29,15 +30,14 @@ pub struct DistinctStoreResult {
     pub name: String,
     pub r#type: Option<String>,
     pub address: Option<String>,
+    pub road_address: Option<String>,
     pub lat: Decimal,
     pub lng: Decimal,
     pub zero_possible: bool,
     pub recommend_names: Vec<String>,
-    pub location_city: Option<String>,
-    pub location_county: Option<String>,
-    pub location_district: Option<String>,
-    pub major_type: Vec<i32>,
-    pub sub_type: Vec<i32>,
     pub tel: Option<String>,
     pub url: Option<String>,
+    pub category_group_name: String,
+    pub category_group_code: String,
+    pub category_name: String
 }

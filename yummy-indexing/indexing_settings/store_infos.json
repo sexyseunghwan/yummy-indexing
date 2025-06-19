@@ -84,15 +84,6 @@
       "lng": { "type": "double" },
       "zero_possible": { "type": "boolean" },
       "recommend_names": { "type": "text", "fields": { "keyword": { "type": "keyword" } } },
-	  "location_city": {
-		"type": "keyword"
-	  },
-	  "location_county": {
-		"type": "keyword"
-	  },
-	  "location_district": {
-		"type": "keyword"
-	  },
 	  "major_type_cd": {
 		"type": "integer"
 	  },
@@ -110,6 +101,15 @@
 	  },
 	  "url": {
 		"type": "keyword"
+	  },
+	  "category_group_name": {
+		"type": "text", "fields": { "keyword": { "type": "keyword" } }
+	  },
+	  "category_group_code": {
+		"type": "text", "fields": { "keyword": { "type": "keyword" } }
+	  },
+	  "category_name": {
+		"type": "text", "fields": { "keyword": { "type": "keyword" } }
 	  }
     }
   }

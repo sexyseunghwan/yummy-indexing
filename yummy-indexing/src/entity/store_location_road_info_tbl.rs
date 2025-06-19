@@ -3,18 +3,18 @@
 use sea_orm::entity::prelude::*;
 
 use crate::entity::store;
-use crate::entity::store_location_info_tbl;
+use crate::entity::store_location_road_info_tbl;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]
-#[sea_orm(table_name = "store_location_info_tbl")]
+#[sea_orm(table_name = "store_location_road_info_tbl")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub seq: i32,
-    pub address: Option<String>,
     #[sea_orm(column_type = "Decimal(Some((20, 16)))")]
     pub lat: Decimal,
     #[sea_orm(column_type = "Decimal(Some((20, 16)))")]
     pub lng: Decimal,
+    pub address: Option<String>,
     pub reg_dt: DateTime,
     pub chg_dt: Option<DateTime>,
     pub reg_id: String,
@@ -31,7 +31,7 @@ pub enum Relation {
     Store,
 }
 
-impl Related<store::Entity> for store_location_info_tbl::Entity {
+impl Related<store::Entity> for store_location_road_info_tbl::Entity {
     fn to() -> RelationDef {
         Relation::Store.def()
     }

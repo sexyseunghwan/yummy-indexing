@@ -8,7 +8,7 @@ es_batch_size = 100
 
 
 [[index]]
-index_name = "dev-yummy-index"
+index_name = "test-dev-yummy-index"
 time = "0 40 8 * * * *"
 indexing_type = "static"
 setting_path = "./indexing_settings/store_infos.json"
