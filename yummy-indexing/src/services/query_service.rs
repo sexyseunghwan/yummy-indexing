@@ -4,10 +4,8 @@ use crate::configuration::index_schedules_config::*;
 
 use crate::entity::category_tbl;
 use crate::entity::store_category_tbl;
-use crate::models::auto_complete::*;
 use crate::models::store_auto_complete::*;
 use crate::models::store_to_elastic::*;
-use crate::models::store_types::*;
 use crate::models::auto_search_keyword::*;
 
 
@@ -53,10 +51,6 @@ pub trait QueryService {
         index_schedule: &IndexSchedules,
         new_datetime: NaiveDateTime,
     ) -> Result<(), anyhow::Error>;
-    // async fn get_store_types(
-    //     &self,
-    //     store_seqs: Option<Vec<i32>>,
-    // ) -> Result<StoreTypesMap, anyhow::Error>;
     async fn get_store_name_by_batch(
         &self,
         index_schedule: &IndexSchedules,
@@ -89,16 +83,14 @@ impl QueryService for QueryServicePub {
         let mut last_seq: Option<i32> = None;
 
         loop {
+            
             let mut query: Select<store::Entity> = store::Entity::find()
-                .inner_join(store_location_info_tbl::Entity)
-                .inner_join(store_location_road_info_tbl::Entity)
-                .inner_join(store_category_tbl::Entity)
-                .join(
-                    JoinType::InnerJoin
-                    , store_category_tbl::Relation::CategoryTbl.def()
-                )
-                .left_join(zero_possible_market::Entity)
-                .left_join(store_recommend_tbl::Entity)
+                .join(JoinType::InnerJoin,store::Relation::StoreLocationInfoTbl.def())
+                .join(JoinType::InnerJoin, store::Relation::StoreLocationRoadInfoTbl.def())
+                .join(JoinType::InnerJoin, store::Relation::StoreCategoryTbl.def())
+                .join(JoinType::InnerJoin, store_category_tbl::Relation::CategoryTbl.def())
+                .join(JoinType::LeftJoin, store::Relation::ZeroPossibleMarket.def())
+                .join(JoinType::LeftJoin, store::Relation::StoreRecommendTbl.def())
                 .join(
                     JoinType::LeftJoin,
                     store_recommend_tbl::Relation::RecommendTbl
@@ -151,6 +143,7 @@ impl QueryService for QueryServicePub {
                 .column_as(category_tbl::Column::CategoryGroupCode, "category_group_code")
                 .column_as(category_tbl::Column::CategoryName, "category_name")
                 .filter(query_filter.clone());
+
 
             if let Some(seq) = last_seq {
                 query = query.filter(store::Column::Seq.gt(seq)); /* `seq`가 마지막 값보다 큰 데이터 가져오기 */
@@ -216,7 +209,7 @@ impl QueryService for QueryServicePub {
         recent_datetime: NaiveDateTime,
     ) -> Result<Vec<DistinctStoreResult>, anyhow::Error> {
         let batch_size: usize = *index_schedule.es_batch_size();
-
+        
         let query_filter: Condition = Condition::all()
             .add(Expr::col((store::Entity, store::Column::UseYn)).eq("Y"))
             .add(
@@ -430,83 +423,6 @@ impl QueryService for QueryServicePub {
 
         Ok(())
     }
-
-    // #[doc = "음식점 정보와 맵핑되는 대분류, 소분류 정보를 모두 가져와 준다."]
-    // /// # Arguments
-    // /// * `store_seqs` - 상점 고유번호 리스트
-    // ///
-    // /// # Returns
-    // /// * Result<StoreTypesMap, anyhow::Error>
-    // async fn get_store_types(
-    //     &self,
-    //     store_seqs: Option<Vec<i32>>,
-    // ) -> Result<StoreTypesMap, anyhow::Error> {
-    //     let db: &DatabaseConnection = establish_connection().await;
-
-    //     let query_filter: Condition = if let Some(seqs) = store_seqs {
-    //         Condition::any().add(store::Column::Seq.is_in(seqs))
-    //     } else {
-    //         Condition::all()
-    //     };
-
-    //     let query: Select<store::Entity> = store::Entity::find()
-    //         .join(JoinType::InnerJoin, store::Relation::StoreTypeLinkTbl.def())
-    //         .join(
-    //             JoinType::InnerJoin,
-    //             store_type_link_tbl::Relation::StoreTypeSub.def(),
-    //         )
-    //         .join(
-    //             JoinType::InnerJoin,
-    //             store_type_sub::Relation::StoreTypeMajor.def(),
-    //         )
-    //         .select_only()
-    //         .columns([store::Column::Seq])
-    //         .column_as(store_type_sub::Column::SubType, "sub_type")
-    //         .column_as(store_type_major::Column::MajorType, "major_type")
-    //         .filter(query_filter);
-
-    //     let store_types_result: Vec<StoreTypesResult> = query.into_model().all(db).await?;
-
-    //     let mut store_type_major_map: HashMap<i32, Vec<i32>> = HashMap::new();
-    //     let mut store_type_sub_map: HashMap<i32, Vec<i32>> = HashMap::new();
-
-    //     /* 중복체크를 위한 HashSet */
-    //     let mut major_seen: HashMap<i32, HashSet<i32>> = HashMap::new();
-    //     let mut sub_seen: HashMap<i32, HashSet<i32>> = HashMap::new();
-
-    //     for store in &store_types_result {
-    //         store_type_major_map
-    //             .entry(store.seq)
-    //             .or_insert_with(Vec::new);
-
-    //         major_seen.entry(store.seq).or_insert_with(HashSet::new);
-
-    //         if let Some(major_types) = store_type_major_map.get_mut(&store.seq) {
-    //             if let Some(major_set) = major_seen.get_mut(&store.seq) {
-    //                 if major_set.insert(store.major_type) {
-    //                     major_types.push(store.major_type);
-    //                 }
-    //             }
-    //         }
-
-    //         store_type_sub_map.entry(store.seq).or_insert_with(Vec::new);
-
-    //         sub_seen.entry(store.seq).or_insert_with(HashSet::new);
-
-    //         if let Some(sub_types) = store_type_sub_map.get_mut(&store.seq) {
-    //             if let Some(sub_set) = sub_seen.get_mut(&store.seq) {
-    //                 if sub_set.insert(store.sub_type) {
-    //                     sub_types.push(store.sub_type);
-    //                 }
-    //             }
-    //         }
-    //     }
-
-    //     let store_types_map: StoreTypesMap =
-    //         StoreTypesMap::new(store_type_major_map, store_type_sub_map);
-
-    //     Ok(store_types_map)
-    // }
 
     #[doc = "상점이름만 리턴해주는 함수"]
     /// # Arguments

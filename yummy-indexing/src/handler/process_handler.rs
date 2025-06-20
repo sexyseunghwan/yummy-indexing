@@ -4,13 +4,11 @@ use crate::services::analyzer_service::*;
 use crate::services::es_query_service::*;
 use crate::services::query_service::*;
 
-use crate::configuration::{index_schedules_config::*, system_config::*};
+use crate::configuration::{index_schedules_config::*};
 
 use crate::models::auto_complete::*;
-use crate::models::store_auto_complete::*;
 use crate::models::auto_search_keyword::*;
 use crate::models::store_to_elastic::*;
-use crate::models::store_types::*;
 
 use crate::utils_module::time_utils::*;
 
@@ -57,47 +55,7 @@ impl<
 
         Ok(())
     }
-
-    // #[doc = "상점분류 정해주는 함수"]
-    // /// # Arguments
-    // /// * `store_seq` - 인덱스 스케쥴 객체
-    // /// * `stores_distinct` - 중복을 제외한 store list
-    // ///
-    // /// # Returns
-    // /// * Result<(), anyhow::Error>
-    // async fn handling_store_type(
-    //     &self,
-    //     store_seq: Option<Vec<i32>>,
-    //     stores_distinct: &mut Vec<DistinctStoreResult>,
-    // ) -> Result<(), anyhow::Error> {
-    //     /* store 리스트와 대응되는 상점분류 데이터 가져오기 */
-    //     let store_types_all: StoreTypesMap = if let Some(seq) = store_seq {
-    //         self.query_service.get_store_types(Some(seq)).await?
-    //     } else {
-    //         self.query_service.get_store_types(None).await?
-    //     };
-
-    //     let store_type_major_map: HashMap<i32, Vec<i32>> = store_types_all.store_type_major_map;
-    //     let store_type_sub_map: HashMap<i32, Vec<i32>> = store_types_all.store_type_sub_map;
-
-    //     for store_elem in stores_distinct {
-    //         let seq: i32 = store_elem.seq;
-
-    //         let major_vec: &Vec<i32> = store_type_major_map
-    //             .get(&seq)
-    //             .ok_or_else(|| anyhow!("[Error][handling_store_type()] No 'seq' corresponding to 'store_type_major_map'. seq: {}", seq))?;
-
-    //         let sub_vec: &Vec<i32> = store_type_sub_map
-    //             .get(&seq)
-    //             .ok_or_else(|| anyhow!("[Error][handling_store_type()] No 'seq' corresponding to 'store_type_sub_map'. seq: {}", seq))?;
-
-    //         store_elem.set_major_type(major_vec.clone());
-    //         store_elem.set_sub_type(sub_vec.clone());
-    //     }
-
-    //     Ok(())
-    // }
-
+    
     #[doc = "Store 객체를 정적색인 해주는 함수"]
     /// # Arguments
     /// * `index_schedule` - 인덱스 스케쥴 객체
@@ -112,7 +70,7 @@ impl<
         let cur_utc_date: NaiveDateTime = get_current_utc_naive_datetime();
 
         /* 중복을 제외한 store 리스트 */
-        let mut stores_distinct: Vec<DistinctStoreResult> = self
+        let stores_distinct: Vec<DistinctStoreResult> = self
             .query_service
             .get_all_store_table(&index_schedule, cur_utc_date)
             .await?;
@@ -154,7 +112,7 @@ impl<
             .query_service
             .get_recent_date_from_elastic_index_info(&index_schedule)
             .await?;
-
+        
         /*
             증분색인은 Delete -> Create 로 나눔
             일단 수정되거나 새로 등록된 데이터를 기준으로 하는 상점 데이터를 모두 지워준다.
@@ -162,7 +120,7 @@ impl<
         */
 
         /* 0. 변경된 데이터 추출 */
-        let mut changed_list: Vec<DistinctStoreResult> = self
+        let changed_list: Vec<DistinctStoreResult> = self
             .query_service
             .get_specific_store_table(&index_schedule, cur_utc_date, recent_index_datetime)
             .await?;
@@ -176,11 +134,6 @@ impl<
         }
 
         /* 2. Create */
-        let seq_list: Vec<i32> = changed_list.iter().map(|item| item.seq).collect();
-
-        // self.handling_store_type(Some(seq_list), &mut changed_list)
-        //     .await?;
-
         if !changed_list.is_empty() {
             self.es_query_service
                 .post_indexing_data_by_bulk_dynamic::<DistinctStoreResult>(

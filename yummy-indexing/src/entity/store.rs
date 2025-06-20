@@ -34,7 +34,7 @@ pub enum Relation {
     StoreRecommendTbl,
     #[sea_orm(has_one = "super::store_location_info_tbl::Entity")]
     StoreLocationInfoTbl,
-    #[sea_orm(has_one = "super::store_location_info_tbl::Entity")]
+    #[sea_orm(has_one = "super::store_location_road_info_tbl::Entity")]
     StoreLocationRoadInfoTbl,
     #[sea_orm(has_one = "super::store_category_tbl::Entity")]
     StoreCategoryTbl,
