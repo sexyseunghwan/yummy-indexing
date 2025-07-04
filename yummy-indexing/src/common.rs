@@ -62,6 +62,8 @@ pub use sea_orm::{
 };
 
 
+pub use rust_decimal::prelude::*;
+
 pub use async_trait::async_trait;
 
 pub use once_cell::sync::{Lazy as once_lazy, OnceCell as once_cells};

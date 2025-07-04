@@ -110,6 +110,9 @@
 	  },
 	  "category_name": {
 		"type": "text", "fields": { "keyword": { "type": "keyword" } }
+	  },
+	  "location": {
+		"type": "geo_point"
 	  }
     }
   }

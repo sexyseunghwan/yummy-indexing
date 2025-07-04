@@ -339,6 +339,10 @@ impl QueryService for QueryServicePub {
                     }
                 })
                 .or_insert_with(|| {
+
+                    let lat_f64: f64 = store.lat.to_f64().unwrap_or(0.0);
+                    let lng_f64: f64 = store.lng.to_f64().unwrap_or(0.0);
+
                     DistinctStoreResult::new(
                         cur_time_utc.clone(),
                         store.seq,
@@ -354,7 +358,8 @@ impl QueryService for QueryServicePub {
                         store.url.clone(),
                         store.category_group_name.clone(),
                         store.category_group_code.clone(),
-                        store.category_name.clone()
+                        store.category_name.clone(),
+                        GeoPoint::new( lat_f64, lng_f64)
                     )
                 });
         }

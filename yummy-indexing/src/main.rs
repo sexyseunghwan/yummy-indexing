@@ -13,6 +13,7 @@ History     : 2025-02-20 Seunghwan Shin       # [v.1.0.0] first create
                                                 1) Elasticsearch connection pool 세마포어로 관리
                                                 2) Centralized Polling 방식으로 전환
               2025-06-20 Seunghwan Shin       # [v.2.5.0] 테이블 구조변화에 따른 색인 구조 변경
+              2025-06-25 Seunghwan Shin       # [v.2.6.0] 위치정보를 double -> geo_point 로 전환
 */
 mod common;
 use common::*;

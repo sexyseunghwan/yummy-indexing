@@ -39,5 +39,12 @@ pub struct DistinctStoreResult {
     pub url: Option<String>,
     pub category_group_name: String,
     pub category_group_code: String,
-    pub category_name: String
+    pub category_name: String,
+    pub location: GeoPoint
+}
+
+#[derive(Debug, Serialize, new)]
+pub struct GeoPoint {
+    lat: f64,
+    lon: f64,
 }

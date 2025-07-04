@@ -75,8 +75,8 @@ impl<
             .get_all_store_table(&index_schedule, cur_utc_date)
             .await?;
         
-        //self.handling_store_type(None, &mut stores_distinct).await?;
-
+        /* 위치정보를 geopoint 형식으로 재정의 하기 위함 */
+        
         /* Elasticsearch 에 데이터 색인. */
         self.es_query_service
             .post_indexing_data_by_bulk_static::<DistinctStoreResult>(
