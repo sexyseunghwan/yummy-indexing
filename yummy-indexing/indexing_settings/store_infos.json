@@ -113,6 +113,9 @@
 	  },
 	  "location": {
 		"type": "geo_point"
+	  },
+	  "category_icon": {
+		"type": "keyword"
 	  }
     }
   }

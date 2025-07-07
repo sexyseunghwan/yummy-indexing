@@ -18,7 +18,8 @@ pub struct StoreResult {
     pub url: Option<String>,
     pub category_group_name: String,
     pub category_group_code: String,
-    pub category_name: String
+    pub category_name: String,
+    pub category_icon: Option<String>
 }
 
 #[doc = "Elasticsearch 와 mapping 할 구조체"]
@@ -40,7 +41,8 @@ pub struct DistinctStoreResult {
     pub category_group_name: String,
     pub category_group_code: String,
     pub category_name: String,
-    pub location: GeoPoint
+    pub location: GeoPoint,
+    pub category_icon: Option<String>
 }
 
 #[derive(Debug, Serialize, new)]

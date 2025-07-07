@@ -13,6 +13,7 @@ pub struct Model {
     pub category_group_code: String,
     pub category_group_name: String,
     pub category_name: String,
+    pub category_icon: Option<String>,
     pub reg_dt: DateTime,
     pub chg_dt: Option<DateTime>,
     pub reg_id: String,

@@ -142,6 +142,7 @@ impl QueryService for QueryServicePub {
                 .column_as(category_tbl::Column::CategoryGroupName, "category_group_name")
                 .column_as(category_tbl::Column::CategoryGroupCode, "category_group_code")
                 .column_as(category_tbl::Column::CategoryName, "category_name")
+                .column_as(category_tbl::Column::CategoryIcon, "category_icon")
                 .filter(query_filter.clone());
 
 
@@ -359,7 +360,8 @@ impl QueryService for QueryServicePub {
                         store.category_group_name.clone(),
                         store.category_group_code.clone(),
                         store.category_name.clone(),
-                        GeoPoint::new( lat_f64, lng_f64)
+                        GeoPoint::new( lat_f64, lng_f64),
+                        Some(store.category_icon.clone().map_or("".to_string(), |s| s))
                     )
                 });
         }
