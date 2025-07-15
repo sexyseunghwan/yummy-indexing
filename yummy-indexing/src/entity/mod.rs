@@ -23,3 +23,4 @@ pub mod auto_search_keyword_tbl;
 pub mod store_location_road_info_tbl;
 pub mod category_tbl;
 pub mod store_category_tbl;
+pub mod subway_info_tbl;

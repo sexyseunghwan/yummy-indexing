@@ -6,9 +6,9 @@ use crate::services::query_service::*;
 
 use crate::configuration::{index_schedules_config::*};
 
-use crate::models::auto_complete::*;
-use crate::models::auto_search_keyword::*;
-use crate::models::store_to_elastic::*;
+use crate::models::{auto_complete::*, auto_search_keyword::*, 
+    store_to_elastic::*, subway_info::*
+};
 
 use crate::utils_module::time_utils::*;
 
@@ -45,6 +45,7 @@ impl<
             "store_static_index" => self.store_static_index(index_schedule).await?,
             "store_dynamic_index" => self.store_dynamic_index(index_schedule).await?,
             "auto_complete_static_index" => self.auto_complete_static_index(index_schedule).await?,
+            "subway_static_index" => self.subway_static_index(index_schedule).await?,
             _ => {
                 return Err(anyhow!(
                     "[Error][main_task()] The mapped function does not exist.: {}",
@@ -241,6 +242,24 @@ impl<
         self.query_service
             .update_recent_date_to_elastic_index_info(&index_schedule, cur_utc_date)
             .await?;
+
+        Ok(())
+    }
+
+
+    #[doc = ""]
+    /// # Arguments
+    /// * `index_schedule` - 인덱스 스케쥴 객체
+    ///
+    /// # Returns
+    /// * Result<(), anyhow::Error>
+    pub async fn subway_static_index(&self, index_schedule: IndexSchedules) -> Result<(), anyhow::Error> {
+
+        /* 현재기준 UTC 시간 */
+        let cur_utc_date: NaiveDateTime = get_current_utc_naive_datetime();
+        
+        let subway_infos: Vec<SubwayInfo> = self.query_service.get_subway_info_by_batch(&index_schedule).await?;
+        
 
         Ok(())
     }

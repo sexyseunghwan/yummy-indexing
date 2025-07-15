@@ -2,11 +2,12 @@ use crate::common::*;
 
 use crate::configuration::index_schedules_config::*;
 
-use crate::entity::category_tbl;
-use crate::entity::store_category_tbl;
-use crate::models::store_auto_complete::*;
-use crate::models::store_to_elastic::*;
-use crate::models::auto_search_keyword::*;
+use crate::entity::{category_tbl, store_category_tbl, subway_info_tbl};
+
+use crate::models::subway_info::SubwayInfo;
+use crate::models::{
+    store_auto_complete::*, store_to_elastic::*, auto_search_keyword::*
+};
 
 
 use crate::repository::mysql_repository::*;
@@ -57,6 +58,8 @@ pub trait QueryService {
     ) -> Result<Vec<StoreAutoComplete>, anyhow::Error>;
     async fn get_locations_name(&self) -> Result<Vec<String>, anyhow::Error>;
     async fn get_auto_search_keyword_by_batch(&self, index_schedule: &IndexSchedules) -> Result<Vec<AutoSearchKeyword>, anyhow::Error>;
+    //async fn get_subway_info_by_batch(&self, batch_size: usize) -> Result<Vec<SubwayInfo>, anyhow::Error>;
+    async fn get_subway_info_by_batch(&self, index_schedule: &IndexSchedules) -> Result<Vec<SubwayInfo>, anyhow::Error>;
 }
 
 #[derive(Debug, new)]
@@ -548,5 +551,52 @@ impl QueryService for QueryServicePub {
         }
         
         Ok(total_auto_search_keywords)
+    }
+
+    #[doc = "지하철 역 정보를 가져와주는 함수"]
+    /// # Arguments
+    /// * `index_schedule` - 인덱스 스케쥴 정보
+    ///
+    /// # Returns
+    /// * Result<Vec<SubwayInfo>, anyhow::Error>
+    async fn get_subway_info_by_batch(&self, index_schedule: &IndexSchedules) -> Result<Vec<SubwayInfo>, anyhow::Error> {
+
+        let db: &DatabaseConnection = establish_connection().await;
+        let mut total_subway_infos: Vec<SubwayInfo> = Vec::new();
+        let mut last_seq: Option<i32> = None;
+        let batch_size: usize = *index_schedule.sql_batch_size();
+
+        loop {
+
+            let mut query: Select<subway_info_tbl::Entity> = subway_info_tbl::Entity::find()
+                .order_by_asc(subway_info_tbl::Column::Seq)
+                .limit(batch_size as u64)
+                .select_only()
+                .columns([
+                    subway_info_tbl::Column::Seq,
+                    subway_info_tbl::Column::SubwayLine,
+                    subway_info_tbl::Column::StationName,
+                    subway_info_tbl::Column::StationEngName,
+                    subway_info_tbl::Column::Lat,
+                    subway_info_tbl::Column::Lng,
+                    subway_info_tbl::Column::StationLoadAddr
+                ]);
+
+            if let Some(seq) = last_seq {
+                query = query.filter(subway_info_tbl::Column::Seq.gt(seq));
+            }
+
+            let mut subway_results: Vec<SubwayInfo> = query.into_model().all(db).await?;
+
+            if subway_results.is_empty() {
+                break;
+            }
+
+            total_subway_infos.append(&mut subway_results);
+            last_seq = total_subway_infos.last().map(|s| s.seq);
+        }
+
+
+        Ok(total_subway_infos)
     }
 }
