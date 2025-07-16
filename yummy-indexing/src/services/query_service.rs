@@ -419,18 +419,40 @@ impl QueryService for QueryServicePub {
         new_datetime: NaiveDateTime,
     ) -> Result<(), anyhow::Error> {
         let index_name: &String = index_schedule.index_name();
-
         let db: &DatabaseConnection = establish_connection().await;
+        let txn: DatabaseTransaction = db.begin().await?;
 
-        elastic_index_info_tbl::Entity::update_many()
-            .col_expr(
-                elastic_index_info_tbl::Column::ChgDt,
-                Expr::value(new_datetime),
-            )
+        /* 색인 시각정보 유무 */
+        let exist_res: Option<elastic_index_info_tbl::Model> = elastic_index_info_tbl::Entity::find()
             .filter(elastic_index_info_tbl::Column::IndexName.eq(index_name))
-            .exec(db)
+            .one(db)
             .await?;
-
+        
+        if exist_res.is_some() {
+            /* 색인 시각정보가 있는 경우 */
+            elastic_index_info_tbl::Entity::update_many()
+                .col_expr(
+                    elastic_index_info_tbl::Column::ChgDt,
+                    Expr::value(new_datetime),
+                )
+                .filter(elastic_index_info_tbl::Column::IndexName.eq(index_name))
+                .exec(&txn)
+                .await?;
+        } else {
+            /* 색인 시각정보가 없는 경우 */
+            let active_model: elastic_index_info_tbl::ActiveModel = elastic_index_info_tbl::ActiveModel {
+                index_name: Set(index_name.to_string()),
+                reg_dt: Set(new_datetime),
+                chg_dt: Set(new_datetime),
+                reg_id: Set("update_recent_date".to_string()),
+                chg_id:  Set("update_recent_date".to_string())
+            };
+            
+            elastic_index_info_tbl::Entity::insert(active_model).exec(&txn).await?;   
+        }
+        
+        txn.commit().await?;
+        
         Ok(())
     }
 
@@ -591,7 +613,7 @@ impl QueryService for QueryServicePub {
             if subway_results.is_empty() {
                 break;
             }
-
+            
             total_subway_infos.append(&mut subway_results);
             last_seq = total_subway_infos.last().map(|s| s.seq);
         }

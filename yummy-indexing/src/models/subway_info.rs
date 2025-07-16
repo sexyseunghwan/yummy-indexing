@@ -2,7 +2,7 @@ use crate::common::*;
 
 
 #[doc = "MySQL 와 맵핑할 구조체"]
-#[derive(Debug, FromQueryResult)]
+#[derive(Debug, FromQueryResult,)]
 pub struct SubwayInfo {
     pub seq: i32,
     pub subway_line: String,
@@ -12,6 +12,23 @@ pub struct SubwayInfo {
     pub lng: Decimal,
     pub station_load_addr: String
 }
+
+impl SubwayInfo {
+    pub fn to_es(&self) -> SubwayInfoEs {
+        SubwayInfoEs::new(
+            self.seq, 
+            self.subway_line.clone(), 
+            self.station_name.clone(), 
+            self.station_eng_name.clone(), 
+             GeoPoint::new(
+                self.lat.to_f64().unwrap_or(0.0),
+                self.lng.to_f64().unwrap_or(0.0),
+            ), 
+            self.station_load_addr.clone()
+        )
+    }
+}
+
 
 #[doc = "Elasticsearch 와 mapping 할 구조체"]
 #[derive(Debug, Serialize, Setters, new)]

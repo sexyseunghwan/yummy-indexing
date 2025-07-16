@@ -84,49 +84,15 @@
 		"search_analyzer": "korean",
 		"similarity": "disable_idf", 
 		"fields": { "keyword": { "type": "keyword" } }},
-      "type": { "type": "keyword", "null_value": "NULL" },
-      "address": { 
-		"type": "text", 
+		"location": {
+			"type": "geo_point"
+		},
+	  "station_load_addr": {
+		"type": "text",
 		"analyzer": "korean",
 		"search_analyzer": "korean",
-		"similarity": "disable_idf",
-		"fields": { "keyword": { "type": "keyword" } }},
-      "lat": { "type": "double" },
-      "lng": { "type": "double" },
-      "zero_possible": { "type": "boolean" },
-      "recommend_names": { "type": "text", "fields": { "keyword": { "type": "keyword" } } },
-	  "major_type_cd": {
-		"type": "integer"
-	  },
-	  "major_type_name": {
-		"type": "keyword"
-	  },
-	  "sub_type_cd": {
-		"type": "integer"
-	  },
-	  "sub_type_name": {
-		"type": "keyword"
-	  },
-	  "tel": {
-		"type": "text", "fields": { "keyword": { "type": "keyword" } }
-	  },
-	  "url": {
-		"type": "keyword"
-	  },
-	  "category_group_name": {
-		"type": "text", "fields": { "keyword": { "type": "keyword" } }
-	  },
-	  "category_group_code": {
-		"type": "text", "fields": { "keyword": { "type": "keyword" } }
-	  },
-	  "category_name": {
-		"type": "text", "fields": { "keyword": { "type": "keyword" } }
-	  },
-	  "location": {
-		"type": "geo_point"
-	  },
-	  "category_icon": {
-		"type": "keyword"
+		"similarity": "disable_idf", 
+		"fields": { "keyword": { "type": "keyword" } }
 	  }
     }
   }

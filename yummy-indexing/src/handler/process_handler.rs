@@ -229,7 +229,7 @@ impl<
 
         /* 자동완성 키워드 데이터 리스트 */
         //let mut auto_completes: Vec<AutoComplete> = Vec::new();
-
+        
         /* Elasticsearch 에 데이터 색인. */
         self.es_query_service
             .post_indexing_data_by_bulk_static::<AutoComplete>(
@@ -247,7 +247,7 @@ impl<
     }
 
 
-    #[doc = ""]
+    #[doc = "지하철 관련 정보를 정적색인해주는 함수"]
     /// # Arguments
     /// * `index_schedule` - 인덱스 스케쥴 객체
     ///
@@ -259,7 +259,22 @@ impl<
         let cur_utc_date: NaiveDateTime = get_current_utc_naive_datetime();
         
         let subway_infos: Vec<SubwayInfo> = self.query_service.get_subway_info_by_batch(&index_schedule).await?;
+        let subway_infos_es: Vec<SubwayInfoEs> = subway_infos.iter().map(|s| s.to_es()).collect();
+
+        /* Elasticsearch 에 데이터 색인. */
+        self.es_query_service
+            .post_indexing_data_by_bulk_static::<SubwayInfoEs>(
+                &index_schedule,
+                &subway_infos_es,
+            )
+            .await?;
         
+        /* 색인시간 최신화 */
+        self.query_service
+            .update_recent_date_to_elastic_index_info(&index_schedule, cur_utc_date)
+            .await?;
+
+        info!("Subway - Static Create Indexing: {}", subway_infos.len());
 
         Ok(())
     }

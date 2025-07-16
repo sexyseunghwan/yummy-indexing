@@ -58,7 +58,7 @@ pub use sea_orm::{
     prelude::{Decimal, Expr},
     ActiveModelBehavior, ColumnTrait, Condition, Database, DatabaseConnection, EntityTrait,
     FromQueryResult, JoinType, QueryFilter, QueryOrder, QuerySelect, RelationTrait, Select,
-    QueryTrait
+    QueryTrait, Set, DatabaseTransaction, TransactionTrait
 };
 
 
