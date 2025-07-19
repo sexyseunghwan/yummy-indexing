@@ -15,7 +15,8 @@ History     : 2025-02-20 Seunghwan Shin       # [v.1.0.0] first create
               2025-06-20 Seunghwan Shin       # [v.2.5.0] 테이블 구조변화에 따른 색인 구조 변경
               2025-06-25 Seunghwan Shin       # [v.2.6.0] 위치정보를 double -> geo_point 로 전환
               2025-07-07 Seunghwan Shin       # [v.2.7.0] 음식점 아이콘 색인 추가  
-              2025-07-15 Seunghwan Shin       # [v.2.8.0] 지하철 색인 추가              
+              2025-07-15 Seunghwan Shin       # [v.2.8.0] 지하철 색인 추가   
+              2025-07-19 Seunghwan Shin       # [v.2.8.1] 지하철 색인 위치데이터타입 수정    
 */
 mod common;
 use common::*;
@@ -69,7 +70,7 @@ async fn main() {
                 panic!("{:?}", e);
             }
         };
-
+    
     match compile_type {
         "schedule" => match centralized_schedule_loop(index_schdules).await {
             Ok(_) => (),

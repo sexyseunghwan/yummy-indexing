@@ -84,7 +84,7 @@
 		"search_analyzer": "korean",
 		"similarity": "disable_idf", 
 		"fields": { "keyword": { "type": "keyword" } }},
-		"location": {
+	  "location": {
 			"type": "geo_point"
 		},
 	  "station_load_addr": {
@@ -92,8 +92,9 @@
 		"analyzer": "korean",
 		"search_analyzer": "korean",
 		"similarity": "disable_idf", 
-		"fields": { "keyword": { "type": "keyword" } }
-	  }
+		"fields": { "keyword": { "type": "keyword" } }},
+	  "lat": { "type": "double" },
+      "lng": { "type": "double" }
     }
   }
 }

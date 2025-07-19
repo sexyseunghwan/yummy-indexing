@@ -24,7 +24,9 @@ impl SubwayInfo {
                 self.lat.to_f64().unwrap_or(0.0),
                 self.lng.to_f64().unwrap_or(0.0),
             ), 
-            self.station_load_addr.clone()
+            self.station_load_addr.clone(),
+            self.lat,
+            self.lng
         )
     }
 }
@@ -39,11 +41,13 @@ pub struct SubwayInfoEs {
     pub station_name: String,
     pub station_eng_name: String,
     pub location: GeoPoint,
-    pub station_load_addr: String
+    pub station_load_addr: String,
+    pub lat: Decimal,
+    pub lng: Decimal,
 }
 
 #[derive(Debug, Serialize, new)]
 pub struct GeoPoint {
-    lat: f64,
-    lon: f64,
+    pub lat: f64,
+    pub lon: f64,
 }
