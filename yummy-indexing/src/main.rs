@@ -17,6 +17,7 @@ History     : 2025-02-20 Seunghwan Shin       # [v.1.0.0] first create
               2025-07-07 Seunghwan Shin       # [v.2.7.0] 음식점 아이콘 색인 추가  
               2025-07-15 Seunghwan Shin       # [v.2.8.0] 지하철 색인 추가   
               2025-07-19 Seunghwan Shin       # [v.2.8.1] 지하철 색인 위치데이터타입 수정    
+              2025-08-15 Seunghwan Shin       # [v.2.9.0] 리뷰개수, 좋아요 개수 색인 추가    
 */
 mod common;
 use common::*;
@@ -92,4 +93,5 @@ async fn main() {
             panic!("[Error][main()] The 'COMPILE_TYPE' information must be 'schedule' or 'cli'.");
         }
     }
+    
 }

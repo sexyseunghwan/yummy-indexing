@@ -8,6 +8,7 @@ use crate::entity::store_location_road_info_tbl;
 use crate::entity::store_recommend_tbl;
 use crate::entity::zero_possible_market;
 use crate::entity::store_category_tbl;
+use crate::entity::store_reviews;
 
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]
@@ -38,6 +39,8 @@ pub enum Relation {
     StoreLocationRoadInfoTbl,
     #[sea_orm(has_one = "super::store_category_tbl::Entity")]
     StoreCategoryTbl,
+    #[sea_orm(has_many = "super::store_reviews::Entity")]
+    StoreReview
 }
 
 impl Related<zero_possible_market::Entity> for store::Entity {
@@ -69,5 +72,12 @@ impl Related<store_category_tbl::Entity> for store::Entity {
         Relation::StoreCategoryTbl.def()
     }
 }
+
+impl Related<store_reviews::Entity> for store::Entity {
+    fn to() -> RelationDef {
+        Relation::StoreReview.def()
+    }
+}
+
 
 impl ActiveModelBehavior for ActiveModel {}

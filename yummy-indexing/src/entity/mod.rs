@@ -24,3 +24,5 @@ pub mod store_location_road_info_tbl;
 pub mod category_tbl;
 pub mod store_category_tbl;
 pub mod subway_info_tbl;
+pub mod reviews;
+pub mod store_reviews;

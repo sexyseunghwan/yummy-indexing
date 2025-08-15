@@ -41,6 +41,7 @@ impl<
     ) -> Result<(), anyhow::Error> {
         let function_name: &str = index_schedule.function_name().as_str();
 
+        /* 리뷰개수, 평점 색인은 5분..에 한번씩 도는걸로 진행해도 괜찮을 듯 보임 */
         match function_name {
             "store_static_index" => self.store_static_index(index_schedule).await?,
             "store_dynamic_index" => self.store_dynamic_index(index_schedule).await?,
@@ -95,7 +96,7 @@ impl<
 
         Ok(())
     }
-
+    
     #[doc = "Store 객체를 증분색인 해주는 함수"]
     /// # Arguments
     /// * `index_schedule` - 인덱스 스케쥴 객체

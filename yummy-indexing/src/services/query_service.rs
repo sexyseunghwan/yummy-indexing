@@ -17,7 +17,8 @@ use crate::utils_module::time_utils::*;
 use crate::entity::{
     elastic_index_info_tbl, location_city_tbl, location_county_tbl, location_district_tbl,
     recommend_tbl, store, store_location_info_tbl, store_recommend_tbl,
-    zero_possible_market, auto_search_keyword_tbl,store_location_road_info_tbl
+    zero_possible_market, auto_search_keyword_tbl,store_location_road_info_tbl,
+    reviews, store_reviews
 };
 
 pub trait QueryService {
@@ -84,7 +85,7 @@ impl QueryService for QueryServicePub {
 
         let mut total_store_list: Vec<StoreResult> = Vec::new();
         let mut last_seq: Option<i32> = None;
-
+        
         loop {
             
             let mut query: Select<store::Entity> = store::Entity::find()
@@ -147,8 +148,7 @@ impl QueryService for QueryServicePub {
                 .column_as(category_tbl::Column::CategoryName, "category_name")
                 .column_as(category_tbl::Column::CategoryIcon, "category_icon")
                 .filter(query_filter.clone());
-
-
+            
             if let Some(seq) = last_seq {
                 query = query.filter(store::Column::Seq.gt(seq)); /* `seq`가 마지막 값보다 큰 데이터 가져오기 */
             }
@@ -158,7 +158,40 @@ impl QueryService for QueryServicePub {
             if store_results.is_empty() {
                 break;
             }
+            
+            /* 배치로 조회한 store들의 seq를 수집 */ 
+            let store_seqs: Vec<i32> = store_results.iter().map(|s| s.seq).collect();
 
+            /* 한 번의 쿼리로 모든 store의 리뷰 통계를 조회 */ 
+            let review_stats: Vec<(i32, i64, Option<rust_decimal::Decimal>)> = store_reviews::Entity::find()
+                .join(JoinType::InnerJoin, store_reviews::Relation::Reviews.def())
+                .filter(store_reviews::Column::Seq.is_in(store_seqs))
+                .select_only()
+                .column_as(store_reviews::Column::Seq, "store_seq")
+                .expr_as(Expr::cust("COUNT(*)"), "review_count")
+                .expr_as(Expr::cust("AVG(reviews.rating)"), "avg_rating")
+                .group_by(store_reviews::Column::Seq)
+                .into_tuple::<(i32, i64, Option<rust_decimal::Decimal>)>()
+                .all(db)
+                .await?;
+            
+            /* 리뷰 통계를 HashMap으로 변환하여 빠른 조회 가능하도록 함 */ 
+            let stats_map: std::collections::HashMap<i32, (i64, Option<f64>)> = review_stats
+                .into_iter()
+                .map(|(seq, count, avg)| (seq, (count, avg.map(|d| d.to_f64().unwrap_or(0.0)))))
+                .collect();
+            
+            /* 각 store에 리뷰 통계 추가 */ 
+            for store in &mut store_results {
+                if let Some((count, avg)) = stats_map.get(&store.seq) {
+                    store.review_count = Some(*count);
+                    store.avg_rating = *avg;
+                } else {
+                    store.review_count = Some(0);
+                    store.avg_rating = Some(0.0);
+                }
+            }
+            
             total_store_list.append(&mut store_results);
             last_seq = total_store_list.last().map(|s| s.seq);
         }
@@ -197,7 +230,7 @@ impl QueryService for QueryServicePub {
 
         Ok(stores_distinct)
     }
-
+    
     #[doc = "색인할 Store 정보를 조회해주는 함수 -> 특정 정보를 가져와준다: 증분색인 용도"]
     /// # Arguments
     /// * `index_schedule` - index_schedule 정보
@@ -346,7 +379,7 @@ impl QueryService for QueryServicePub {
 
                     let lat_f64: f64 = store.lat.to_f64().unwrap_or(0.0);
                     let lng_f64: f64 = store.lng.to_f64().unwrap_or(0.0);
-
+                    
                     DistinctStoreResult::new(
                         cur_time_utc.clone(),
                         store.seq,
@@ -364,7 +397,9 @@ impl QueryService for QueryServicePub {
                         store.category_group_code.clone(),
                         store.category_name.clone(),
                         GeoPoint::new( lat_f64, lng_f64),
-                        Some(store.category_icon.clone().map_or("".to_string(), |s| s))
+                        Some(store.category_icon.clone().map_or("".to_string(), |s| s)),
+                        store.avg_rating.clone(),
+                        store.review_count.clone()
                     )
                 });
         }
