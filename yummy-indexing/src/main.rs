@@ -49,6 +49,8 @@ use env_configuration::env_config::*;
 
 mod entity;
 
+mod traits;
+
 #[tokio::main]
 async fn main() {
     set_global_logger();
