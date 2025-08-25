@@ -17,7 +17,7 @@ pub struct Model {
     pub reg_dt: DateTime,
     pub chg_dt: Option<DateTime>,
     pub reg_id: String,
-    pub chg_id: Option<String>
+    pub chg_id: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -25,7 +25,6 @@ pub enum Relation {
     #[sea_orm(has_many = "super::store_category_tbl::Entity")]
     StoreCategoryTbl,
 }
-
 
 impl Related<store_category_tbl::Entity> for category_tbl::Entity {
     fn to() -> RelationDef {

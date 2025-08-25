@@ -4,5 +4,5 @@ use crate::common::*;
 #[derive(Debug, FromQueryResult, Serialize, Setters, Clone, new)]
 pub struct AutoSearchKeyword {
     pub keyword: String,
-    pub keyword_weight: i32
+    pub keyword_weight: i32,
 }

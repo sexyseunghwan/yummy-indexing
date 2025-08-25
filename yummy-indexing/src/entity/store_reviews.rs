@@ -1,8 +1,8 @@
 use sea_orm::entity::prelude::*;
 
+use crate::entity::reviews;
 use crate::entity::store;
 use crate::entity::store_reviews;
-use crate::entity::reviews;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
 #[sea_orm(table_name = "store_reviews")]
@@ -55,7 +55,7 @@ pub enum Relation {
         from = "Column::ReviewId",
         to = "super::reviews::Column::ReviewId"
     )]
-    Reviews
+    Reviews,
 }
 
 impl Related<store::Entity> for store_reviews::Entity {
@@ -69,7 +69,5 @@ impl Related<reviews::Entity> for store_reviews::Entity {
         Relation::Reviews.def()
     }
 }
-
-
 
 impl ActiveModelBehavior for ActiveModel {}

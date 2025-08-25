@@ -55,13 +55,14 @@ pub use derive_new::new;
 pub use getset::{Getters, Setters};
 
 pub use sea_orm::{
-    prelude::{Decimal, Expr}, DynIden, PaginatorTrait,
-    sea_query::{Alias, Query, Func, SelectStatement, Condition as seqCondition, TableRef, IntoIden},
-    ActiveModelBehavior, ColumnTrait, Condition, Database, DatabaseConnection, EntityTrait,
-    FromQueryResult, JoinType, QueryFilter, QueryOrder, QuerySelect, RelationTrait, Select,
-    QueryTrait, Set, DatabaseTransaction, TransactionTrait
+    prelude::{Decimal, Expr},
+    sea_query::{
+        Alias, Condition as seqCondition, Func, IntoIden, Query, SelectStatement, TableRef,
+    },
+    ActiveModelBehavior, ColumnTrait, Condition, Database, DatabaseConnection, DatabaseTransaction,
+    DynIden, EntityTrait, FromQueryResult, JoinType, PaginatorTrait, QueryFilter, QueryOrder,
+    QuerySelect, QueryTrait, RelationTrait, Select, Set, TransactionTrait,
 };
-
 
 pub use rust_decimal::prelude::*;
 

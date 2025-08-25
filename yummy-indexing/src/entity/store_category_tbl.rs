@@ -2,9 +2,9 @@
 
 use sea_orm::entity::prelude::*;
 
+use crate::entity::category_tbl;
 use crate::entity::store;
 use crate::entity::store_category_tbl;
-use crate::entity::category_tbl;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]
 #[sea_orm(table_name = "store_category_tbl")]
@@ -16,8 +16,7 @@ pub struct Model {
     pub reg_dt: DateTime,
     pub chg_dt: Option<DateTime>,
     pub reg_id: String,
-    pub chg_id: Option<String>
-
+    pub chg_id: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -33,9 +32,8 @@ pub enum Relation {
         from = "Column::CategorySeq",
         to = "super::category_tbl::Column::CategorySeq"
     )]
-    CategoryTbl
+    CategoryTbl,
 }
-
 
 impl Related<store::Entity> for store_category_tbl::Entity {
     fn to() -> RelationDef {
@@ -48,6 +46,5 @@ impl Related<category_tbl::Entity> for store_category_tbl::Entity {
         Relation::CategoryTbl.def()
     }
 }
-
 
 impl ActiveModelBehavior for ActiveModel {}

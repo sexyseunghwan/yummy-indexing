@@ -18,7 +18,7 @@ pub struct Model {
     pub reg_dt: DateTime,
     pub chg_dt: Option<DateTime>,
     pub reg_id: String,
-    pub chg_id: Option<String>
+    pub chg_id: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

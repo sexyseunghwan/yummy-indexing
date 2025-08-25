@@ -5,29 +5,19 @@ use crate::configuration::index_schedules_config::*;
 use crate::entity::{category_tbl, store_category_tbl, subway_info_tbl};
 
 use crate::models::subway_info::SubwayInfo;
-use crate::models::{
-    store_auto_complete::*, store_to_elastic::*, auto_search_keyword::*
-};
-
+use crate::models::{auto_search_keyword::*, store_auto_complete::*, store_to_elastic::*};
 
 use crate::repository::mysql_repository::*;
 
 use crate::utils_module::time_utils::*;
 
 use crate::entity::{
-    elastic_index_info_tbl, location_city_tbl, location_county_tbl, location_district_tbl,
-    recommend_tbl, store, store_location_info_tbl, store_recommend_tbl,
-    zero_possible_market, auto_search_keyword_tbl,store_location_road_info_tbl,
-    reviews, store_reviews
+    auto_search_keyword_tbl, elastic_index_info_tbl, location_city_tbl, location_county_tbl,
+    location_district_tbl, recommend_tbl, reviews, store, store_location_info_tbl,
+    store_location_road_info_tbl, store_recommend_tbl, store_reviews, zero_possible_market,
 };
 
 pub trait QueryService {
-    async fn get_store_by_batch(
-        &self,
-        batch_size: usize,
-        query_filter: Condition,
-        cur_utc_date: NaiveDateTime,
-    ) -> Result<Vec<StoreResult>, anyhow::Error>;
     async fn get_all_store_table(
         &self,
         index_schedule: &IndexSchedules,
@@ -38,11 +28,6 @@ pub trait QueryService {
         index_schedule: &IndexSchedules,
         cur_utc_date: NaiveDateTime,
         recent_datetime: NaiveDateTime,
-    ) -> Result<Vec<DistinctStoreResult>, anyhow::Error>;
-    fn get_distinct_store_table(
-        &self,
-        stores: &[StoreResult],
-        cur_utc_date: NaiveDateTime,
     ) -> Result<Vec<DistinctStoreResult>, anyhow::Error>;
     async fn get_recent_date_from_elastic_index_info(
         &self,
@@ -58,15 +43,186 @@ pub trait QueryService {
         index_schedule: &IndexSchedules,
     ) -> Result<Vec<StoreAutoComplete>, anyhow::Error>;
     async fn get_locations_name(&self) -> Result<Vec<String>, anyhow::Error>;
-    async fn get_auto_search_keyword_by_batch(&self, index_schedule: &IndexSchedules) -> Result<Vec<AutoSearchKeyword>, anyhow::Error>;
+    async fn get_auto_search_keyword_by_batch(
+        &self,
+        index_schedule: &IndexSchedules,
+    ) -> Result<Vec<AutoSearchKeyword>, anyhow::Error>;
     //async fn get_subway_info_by_batch(&self, batch_size: usize) -> Result<Vec<SubwayInfo>, anyhow::Error>;
-    async fn get_subway_info_by_batch(&self, index_schedule: &IndexSchedules) -> Result<Vec<SubwayInfo>, anyhow::Error>;
+    async fn get_subway_info_by_batch(
+        &self,
+        index_schedule: &IndexSchedules,
+    ) -> Result<Vec<SubwayInfo>, anyhow::Error>;
 }
 
 #[derive(Debug, new)]
 pub struct QueryServicePub;
 
-impl QueryService for QueryServicePub {
+impl QueryServicePub {
+    
+    #[doc = "yummy-index 즉, 상점정보 색인을 위한 데이터 조회"]
+    async fn find_store_to_elastic_indexing(
+        &self,
+        db: &DatabaseConnection,
+        query_filter: &Condition,
+        batch_size: usize,
+        last_seq: Option<i32>,
+        cur_utc_date: NaiveDateTime,
+    ) -> Result<Vec<StoreResult>, anyhow::Error> {
+        /*
+            SELECT
+                s.seq,
+                s.name,
+                s.type,
+                s.tel,
+                s.url,
+                CASE
+                    WHEN zpm.use_yn = 'N' THEN 0
+                    WHEN zpm.name IS NOT NULL THEN 1
+                    ELSE 0
+                END AS zero_possible,
+                sli.address       AS address,
+                sli.lat           AS lat,
+                sli.lng           AS lng,
+                slr.address       AS road_address,
+                r.recommend_name  AS recommend_name,
+                c.category_group_name,
+                c.category_group_code,
+                c.category_name,
+                c.category_icon
+            FROM store AS s
+            JOIN store_location_info_tbl  AS sli ON sli.seq = s.seq
+            JOIN store_location_road_info_tbl AS slr ON slr.seq = s.seq
+            JOIN store_category_tbl       AS sc  ON sc.seq = s.seq
+            JOIN category_tbl             AS c   ON c.category_seq = sc.category_seq
+            LEFT JOIN zero_possible_market AS zpm ON zpm.seq = s.seq
+            LEFT JOIN store_recommend_tbl  AS srt ON srt.seq = s.seq
+            LEFT JOIN recommend_tbl         AS r   ON r.recommend_seq = srt.recommend_seq AND r.recommend_yn = 'Y';
+        */
+        let mut query: Select<store::Entity> = store::Entity::find()
+            .join(
+                JoinType::InnerJoin,
+                store::Relation::StoreLocationInfoTbl.def(),
+            )
+            .join(
+                JoinType::InnerJoin,
+                store::Relation::StoreLocationRoadInfoTbl.def(),
+            )
+            .join(JoinType::InnerJoin, store::Relation::StoreCategoryTbl.def())
+            .join(
+                JoinType::InnerJoin,
+                store_category_tbl::Relation::CategoryTbl.def(),
+            )
+            .join(
+                JoinType::LeftJoin,
+                store::Relation::ZeroPossibleMarket.def(),
+            )
+            .join(JoinType::LeftJoin, store::Relation::StoreRecommendTbl.def())
+            .join(
+                JoinType::LeftJoin,
+                store_recommend_tbl::Relation::RecommendTbl
+                    .def()
+                    .on_condition(move |_r, _| {
+                        Condition::all()
+                            .add(Expr::col(recommend_tbl::Column::RecommendYn).eq("Y"))
+                            .add(
+                                Expr::col(store_recommend_tbl::Column::RecommendEndDt)
+                                    .gt(cur_utc_date),
+                            )
+                    }),
+            )
+            .order_by_asc(store::Column::Seq)
+            .limit(batch_size as u64)
+            .select_only()
+            .columns([
+                store::Column::Seq,
+                store::Column::Name,
+                store::Column::Type,
+                store::Column::Tel,
+                store::Column::Url,
+            ])
+            .expr_as(
+                Expr::case(
+                    Expr::col((
+                        zero_possible_market::Entity,
+                        zero_possible_market::Column::UseYn,
+                    ))
+                    .eq("N"),
+                    false,
+                )
+                .case(
+                    Expr::col((
+                        zero_possible_market::Entity,
+                        zero_possible_market::Column::Name,
+                    ))
+                    .is_not_null(),
+                    true,
+                )
+                .finally(false),
+                "zero_possible",
+            )
+            .column_as(store_location_info_tbl::Column::Address, "address")
+            .column_as(store_location_info_tbl::Column::Lat, "lat")
+            .column_as(store_location_info_tbl::Column::Lng, "lng")
+            .column_as(
+                store_location_road_info_tbl::Column::Address,
+                "road_address",
+            )
+            .column_as(recommend_tbl::Column::RecommendName, "recommend_name")
+            .column_as(
+                category_tbl::Column::CategoryGroupName,
+                "category_group_name",
+            )
+            .column_as(
+                category_tbl::Column::CategoryGroupCode,
+                "category_group_code",
+            )
+            .column_as(category_tbl::Column::CategoryName, "category_name")
+            .column_as(category_tbl::Column::CategoryIcon, "category_icon")
+            .filter(query_filter.clone());
+
+        if let Some(seq) = last_seq {
+            query = query.filter(store::Column::Seq.gt(seq)); /* `seq`가 마지막 값보다 큰 데이터 가져오기 */
+        }
+
+        let store_results: Vec<StoreResult> = query.into_model().all(db).await?;
+
+        Ok(store_results)
+    }
+
+    #[doc = "상점 리뷰의 개수와 평균 별점을 집계하여 가져와주는 함수"]
+    async fn get_review_stats_by_store(&self, db: &DatabaseConnection, store_seqs: Vec<i32>) -> Result<HashMap<i32, (i64, Option<f64>)>, anyhow::Error> {
+        /*
+            SELECT
+                AVG(r.rating)
+            ,	COUNT(*)
+            FROM store_reviews sr
+            INNER JOIN reviews r ON sr.review_id = r.review_id
+            WHERE sr.seq IN (...)
+            GROUP BY sr.seq;
+        */
+        /* 한 번의 쿼리로 모든 store의 리뷰 통계를 조회 */
+        let review_stats: Vec<(i32, i64, Option<rust_decimal::Decimal>)> =
+            store_reviews::Entity::find()
+                .join(JoinType::InnerJoin, store_reviews::Relation::Reviews.def())
+                .filter(store_reviews::Column::Seq.is_in(store_seqs))
+                .select_only()
+                .column_as(store_reviews::Column::Seq, "store_seq")
+                .expr_as(Expr::cust("COUNT(*)"), "review_count")
+                .expr_as(Expr::cust("AVG(reviews.rating)"), "avg_rating")
+                .group_by(store_reviews::Column::Seq)
+                .into_tuple::<(i32, i64, Option<rust_decimal::Decimal>)>()
+                .all(db)
+                .await?;
+
+            /* 리뷰 통계를 HashMap으로 변환하여 빠른 조회 가능하도록 함 */
+            let stats_map: HashMap<i32, (i64, Option<f64>)> = review_stats
+                .into_iter()
+                .map(|(seq, count, avg)| (seq, (count, avg.map(|d| d.to_f64().unwrap_or(0.0)))))
+                .collect();
+
+        Ok(stats_map)
+    }
+
     #[doc = "store 색인 관련 배치 함수"]
     /// # Arguments
     /// * `batch_size` - 쿼리 배치 사이즈
@@ -79,109 +235,28 @@ impl QueryService for QueryServicePub {
         &self,
         batch_size: usize,
         query_filter: Condition,
-        cur_utc_date: NaiveDateTime,
+        cur_utc_date: NaiveDateTime
     ) -> Result<Vec<StoreResult>, anyhow::Error> {
         let db: &DatabaseConnection = establish_connection().await;
 
         let mut total_store_list: Vec<StoreResult> = Vec::new();
         let mut last_seq: Option<i32> = None;
-        
+
         loop {
             
-            let mut query: Select<store::Entity> = store::Entity::find()
-                .join(JoinType::InnerJoin,store::Relation::StoreLocationInfoTbl.def())
-                .join(JoinType::InnerJoin, store::Relation::StoreLocationRoadInfoTbl.def())
-                .join(JoinType::InnerJoin, store::Relation::StoreCategoryTbl.def())
-                .join(JoinType::InnerJoin, store_category_tbl::Relation::CategoryTbl.def())
-                .join(JoinType::LeftJoin, store::Relation::ZeroPossibleMarket.def())
-                .join(JoinType::LeftJoin, store::Relation::StoreRecommendTbl.def())
-                .join(
-                    JoinType::LeftJoin,
-                    store_recommend_tbl::Relation::RecommendTbl
-                        .def()
-                        .on_condition(move |_r, _| {
-                            Condition::all()
-                                .add(Expr::col(recommend_tbl::Column::RecommendYn).eq("Y"))
-                                .add(
-                                    Expr::col(store_recommend_tbl::Column::RecommendEndDt)
-                                        .gt(cur_utc_date),
-                                )
-                        }),
-                )
-                .order_by_asc(store::Column::Seq)
-                .limit(batch_size as u64)
-                .select_only()
-                .columns([
-                    store::Column::Seq,
-                    store::Column::Name,
-                    store::Column::Type,
-                    store::Column::Tel,
-                    store::Column::Url,
-                ])
-                .expr_as(
-                    Expr::case(
-                        Expr::col((
-                            zero_possible_market::Entity,
-                            zero_possible_market::Column::UseYn,
-                        ))
-                        .eq("N"),
-                        false,
-                    )
-                    .case(
-                        Expr::col((
-                            zero_possible_market::Entity,
-                            zero_possible_market::Column::Name,
-                        ))
-                        .is_not_null(),
-                        true,
-                    )
-                    .finally(false),
-                    "zero_possible",
-                )
-                .column_as(store_location_info_tbl::Column::Address, "address")
-                .column_as(store_location_info_tbl::Column::Lat, "lat")
-                .column_as(store_location_info_tbl::Column::Lng, "lng")
-                .column_as(store_location_road_info_tbl::Column::Address, "road_address")
-                .column_as(recommend_tbl::Column::RecommendName, "recommend_name")
-                .column_as(category_tbl::Column::CategoryGroupName, "category_group_name")
-                .column_as(category_tbl::Column::CategoryGroupCode, "category_group_code")
-                .column_as(category_tbl::Column::CategoryName, "category_name")
-                .column_as(category_tbl::Column::CategoryIcon, "category_icon")
-                .filter(query_filter.clone());
-            
-            if let Some(seq) = last_seq {
-                query = query.filter(store::Column::Seq.gt(seq)); /* `seq`가 마지막 값보다 큰 데이터 가져오기 */
-            }
-
-            let mut store_results: Vec<StoreResult> = query.into_model().all(db).await?;
+            let mut store_results: Vec<StoreResult> = self.find_store_to_elastic_indexing(db, &query_filter, batch_size, last_seq, cur_utc_date).await?;
 
             if store_results.is_empty() {
                 break;
             }
-            
-            /* 배치로 조회한 store들의 seq를 수집 */ 
+
+            /* 배치로 조회한 store들의 seq를 수집 */
             let store_seqs: Vec<i32> = store_results.iter().map(|s| s.seq).collect();
 
-            /* 한 번의 쿼리로 모든 store의 리뷰 통계를 조회 */ 
-            let review_stats: Vec<(i32, i64, Option<rust_decimal::Decimal>)> = store_reviews::Entity::find()
-                .join(JoinType::InnerJoin, store_reviews::Relation::Reviews.def())
-                .filter(store_reviews::Column::Seq.is_in(store_seqs))
-                .select_only()
-                .column_as(store_reviews::Column::Seq, "store_seq")
-                .expr_as(Expr::cust("COUNT(*)"), "review_count")
-                .expr_as(Expr::cust("AVG(reviews.rating)"), "avg_rating")
-                .group_by(store_reviews::Column::Seq)
-                .into_tuple::<(i32, i64, Option<rust_decimal::Decimal>)>()
-                .all(db)
-                .await?;
-            
-            /* 리뷰 통계를 HashMap으로 변환하여 빠른 조회 가능하도록 함 */ 
-            let stats_map: std::collections::HashMap<i32, (i64, Option<f64>)> = review_stats
-                .into_iter()
-                .map(|(seq, count, avg)| (seq, (count, avg.map(|d| d.to_f64().unwrap_or(0.0)))))
-                .collect();
-            
-            /* 각 store에 리뷰 통계 추가 */ 
+            /* 리뷰 통계를 HashMap으로 변환하여 빠른 조회 가능하도록 함 */
+            let stats_map: HashMap<i32, (i64, Option<f64>)> = self.get_review_stats_by_store(db, store_seqs).await?;
+
+            /* 각 store에 리뷰 통계 추가 */
             for store in &mut store_results {
                 if let Some((count, avg)) = stats_map.get(&store.seq) {
                     store.review_count = Some(*count);
@@ -191,13 +266,72 @@ impl QueryService for QueryServicePub {
                     store.avg_rating = Some(0.0);
                 }
             }
-            
+
             total_store_list.append(&mut store_results);
             last_seq = total_store_list.last().map(|s| s.seq);
         }
 
         Ok(total_store_list)
     }
+
+    #[doc = "색인할 Store 정보를 조회해주는 함수 -> 중복 제거"]
+    /// # Arguments
+    /// * `stores` - store 데이터 객체 리스트
+    /// * `cur_utc_date` - 현재 UTC 기준 시간 데이터
+    ///
+    /// # Returns
+    /// * Result<Vec<DistinctStoreResult>, anyhow::Error>
+    fn get_distinct_store_table(
+        &self,
+        stores: &[StoreResult],
+        cur_utc_date: NaiveDateTime,
+    ) -> Result<Vec<DistinctStoreResult>, anyhow::Error> {
+        let mut store_map: HashMap<i32, DistinctStoreResult> = HashMap::new();
+        let cur_time_utc: String = get_str_from_naive_datetime(cur_utc_date);
+
+        for store in stores {
+            store_map
+                .entry(store.seq)
+                .and_modify(|existing| {
+                    if let Some(recommend) = &store.recommend_name {
+                        existing.recommend_names.push(recommend.to_string());
+                    }
+                })
+                .or_insert_with(|| {
+                    let lat_f64: f64 = store.lat.to_f64().unwrap_or(0.0);
+                    let lng_f64: f64 = store.lng.to_f64().unwrap_or(0.0);
+
+                    DistinctStoreResult::new(
+                        cur_time_utc.clone(),
+                        store.seq,
+                        store.name.clone(),
+                        store.r#type.clone(),
+                        store.address.clone(),
+                        store.road_address.clone(),
+                        store.lat,
+                        store.lng,
+                        store.zero_possible,
+                        store.recommend_name.clone().map_or(vec![], |r| vec![r]),
+                        store.tel.clone(),
+                        store.url.clone(),
+                        store.category_group_name.clone(),
+                        store.category_group_code.clone(),
+                        store.category_name.clone(),
+                        GeoPoint::new(lat_f64, lng_f64),
+                        Some(store.category_icon.clone().map_or("".to_string(), |s| s)),
+                        store.avg_rating.clone(),
+                        store.review_count.clone(),
+                    )
+                });
+        }
+
+        let result: Vec<DistinctStoreResult> = store_map.into_values().collect();
+        Ok(result)
+    }
+
+}
+
+impl QueryService for QueryServicePub {
 
     #[doc = "색인할 Store 정보를 조회해주는 함수 -> 모든 정보를 가져와준다: 정적색인 용도"]
     /// # Arguments
@@ -230,7 +364,7 @@ impl QueryService for QueryServicePub {
 
         Ok(stores_distinct)
     }
-    
+
     #[doc = "색인할 Store 정보를 조회해주는 함수 -> 특정 정보를 가져와준다: 증분색인 용도"]
     /// # Arguments
     /// * `index_schedule` - index_schedule 정보
@@ -246,7 +380,7 @@ impl QueryService for QueryServicePub {
         recent_datetime: NaiveDateTime,
     ) -> Result<Vec<DistinctStoreResult>, anyhow::Error> {
         let batch_size: usize = *index_schedule.es_batch_size();
-        
+
         let query_filter: Condition = Condition::all()
             .add(Expr::col((store::Entity, store::Column::UseYn)).eq("Y"))
             .add(
@@ -324,20 +458,13 @@ impl QueryService for QueryServicePub {
                         .gt(recent_datetime),
                     )
                     .add(
-                        Expr::col((
-                            category_tbl::Entity,
-                            category_tbl::Column::ChgDt,
-                        ))
-                        .gt(recent_datetime),
+                        Expr::col((category_tbl::Entity, category_tbl::Column::ChgDt))
+                            .gt(recent_datetime),
                     )
                     .add(
-                        Expr::col((
-                            category_tbl::Entity,
-                            category_tbl::Column::RegDt,
-                        ))
-                        .gt(recent_datetime),
-                    )
-                    
+                        Expr::col((category_tbl::Entity, category_tbl::Column::RegDt))
+                            .gt(recent_datetime),
+                    ),
             );
 
         /* 중복이 존재하는 store 리스트 */
@@ -350,62 +477,6 @@ impl QueryService for QueryServicePub {
             self.get_distinct_store_table(&stores, cur_utc_date)?;
 
         Ok(stores_distinct)
-    }
-    
-    #[doc = "색인할 Store 정보를 조회해주는 함수 -> 중복 제거"]
-    /// # Arguments
-    /// * `stores` - store 데이터 객체 리스트
-    /// * `cur_utc_date` - 현재 UTC 기준 시간 데이터
-    ///
-    /// # Returns
-    /// * Result<Vec<DistinctStoreResult>, anyhow::Error>
-    fn get_distinct_store_table(
-        &self,
-        stores: &[StoreResult],
-        cur_utc_date: NaiveDateTime,
-    ) -> Result<Vec<DistinctStoreResult>, anyhow::Error> {
-        let mut store_map: HashMap<i32, DistinctStoreResult> = HashMap::new();
-        let cur_time_utc: String = get_str_from_naive_datetime(cur_utc_date);
-
-        for store in stores {
-            store_map
-                .entry(store.seq)
-                .and_modify(|existing| {
-                    if let Some(recommend) = &store.recommend_name {
-                        existing.recommend_names.push(recommend.to_string());
-                    }
-                })
-                .or_insert_with(|| {
-
-                    let lat_f64: f64 = store.lat.to_f64().unwrap_or(0.0);
-                    let lng_f64: f64 = store.lng.to_f64().unwrap_or(0.0);
-                    
-                    DistinctStoreResult::new(
-                        cur_time_utc.clone(),
-                        store.seq,
-                        store.name.clone(),
-                        store.r#type.clone(),
-                        store.address.clone(),
-                        store.road_address.clone(),
-                        store.lat,
-                        store.lng,
-                        store.zero_possible,
-                        store.recommend_name.clone().map_or(vec![], |r| vec![r]),
-                        store.tel.clone(),
-                        store.url.clone(),
-                        store.category_group_name.clone(),
-                        store.category_group_code.clone(),
-                        store.category_name.clone(),
-                        GeoPoint::new( lat_f64, lng_f64),
-                        Some(store.category_icon.clone().map_or("".to_string(), |s| s)),
-                        store.avg_rating.clone(),
-                        store.review_count.clone()
-                    )
-                });
-        }
-
-        let result: Vec<DistinctStoreResult> = store_map.into_values().collect();
-        Ok(result)
     }
 
     #[doc = "특정 인덱스에서 가장 최근에 색인된 날짜/시간 정보를 가져와주는 함수"]
@@ -458,11 +529,12 @@ impl QueryService for QueryServicePub {
         let txn: DatabaseTransaction = db.begin().await?;
 
         /* 색인 시각정보 유무 */
-        let exist_res: Option<elastic_index_info_tbl::Model> = elastic_index_info_tbl::Entity::find()
-            .filter(elastic_index_info_tbl::Column::IndexName.eq(index_name))
-            .one(db)
-            .await?;
-        
+        let exist_res: Option<elastic_index_info_tbl::Model> =
+            elastic_index_info_tbl::Entity::find()
+                .filter(elastic_index_info_tbl::Column::IndexName.eq(index_name))
+                .one(db)
+                .await?;
+
         if exist_res.is_some() {
             /* 색인 시각정보가 있는 경우 */
             elastic_index_info_tbl::Entity::update_many()
@@ -475,19 +547,22 @@ impl QueryService for QueryServicePub {
                 .await?;
         } else {
             /* 색인 시각정보가 없는 경우 */
-            let active_model: elastic_index_info_tbl::ActiveModel = elastic_index_info_tbl::ActiveModel {
-                index_name: Set(index_name.to_string()),
-                reg_dt: Set(new_datetime),
-                chg_dt: Set(new_datetime),
-                reg_id: Set("update_recent_date".to_string()),
-                chg_id:  Set("update_recent_date".to_string())
-            };
-            
-            elastic_index_info_tbl::Entity::insert(active_model).exec(&txn).await?;   
+            let active_model: elastic_index_info_tbl::ActiveModel =
+                elastic_index_info_tbl::ActiveModel {
+                    index_name: Set(index_name.to_string()),
+                    reg_dt: Set(new_datetime),
+                    chg_dt: Set(new_datetime),
+                    reg_id: Set("update_recent_date".to_string()),
+                    chg_id: Set("update_recent_date".to_string()),
+                };
+
+            elastic_index_info_tbl::Entity::insert(active_model)
+                .exec(&txn)
+                .await?;
         }
-        
+
         txn.commit().await?;
-        
+
         Ok(())
     }
 
@@ -568,35 +643,37 @@ impl QueryService for QueryServicePub {
 
         Ok(locations_list)
     }
-    
+
     #[doc = "자동완성/연관검색어 데이터를 가져오기 위한 함수"]
     /// # Arguments
     /// * `index_schedule` - 인덱스 스케쥴 정보
     ///
     /// # Returns
     /// * Result<Vec<AutoSearchKeyword>, anyhow::Error>
-    async fn get_auto_search_keyword_by_batch(&self, index_schedule: &IndexSchedules) -> Result<Vec<AutoSearchKeyword>, anyhow::Error> {
-        
+    async fn get_auto_search_keyword_by_batch(
+        &self,
+        index_schedule: &IndexSchedules,
+    ) -> Result<Vec<AutoSearchKeyword>, anyhow::Error> {
         let db: &DatabaseConnection = establish_connection().await;
 
         let batch_size: usize = index_schedule.sql_batch_size;
         let mut total_auto_search_keywords: Vec<AutoSearchKeyword> = Vec::new();
         let mut last_key: Option<String> = None;
-        
-        loop {
 
-            let mut query: Select<auto_search_keyword_tbl::Entity> = auto_search_keyword_tbl::Entity::find()
-                .order_by_asc(auto_search_keyword_tbl::Column::Keyword)
-                .limit(batch_size as u64)
-                .columns([
-                    auto_search_keyword_tbl::Column::Keyword,
-                    auto_search_keyword_tbl::Column::KeywordWeight
-                ]);
-            
+        loop {
+            let mut query: Select<auto_search_keyword_tbl::Entity> =
+                auto_search_keyword_tbl::Entity::find()
+                    .order_by_asc(auto_search_keyword_tbl::Column::Keyword)
+                    .limit(batch_size as u64)
+                    .columns([
+                        auto_search_keyword_tbl::Column::Keyword,
+                        auto_search_keyword_tbl::Column::KeywordWeight,
+                    ]);
+
             if let Some(ref last_key) = last_key {
                 query = query.filter(auto_search_keyword_tbl::Column::Keyword.gt(last_key));
             }
-            
+
             let mut select_list: Vec<AutoSearchKeyword> = query.into_model().all(db).await?;
 
             if select_list.is_empty() {
@@ -606,7 +683,7 @@ impl QueryService for QueryServicePub {
             total_auto_search_keywords.append(&mut select_list);
             last_key = total_auto_search_keywords.last().map(|a| a.keyword.clone());
         }
-        
+
         Ok(total_auto_search_keywords)
     }
 
@@ -616,15 +693,16 @@ impl QueryService for QueryServicePub {
     ///
     /// # Returns
     /// * Result<Vec<SubwayInfo>, anyhow::Error>
-    async fn get_subway_info_by_batch(&self, index_schedule: &IndexSchedules) -> Result<Vec<SubwayInfo>, anyhow::Error> {
-
+    async fn get_subway_info_by_batch(
+        &self,
+        index_schedule: &IndexSchedules,
+    ) -> Result<Vec<SubwayInfo>, anyhow::Error> {
         let db: &DatabaseConnection = establish_connection().await;
         let mut total_subway_infos: Vec<SubwayInfo> = Vec::new();
         let mut last_seq: Option<i32> = None;
         let batch_size: usize = *index_schedule.sql_batch_size();
 
         loop {
-
             let mut query: Select<subway_info_tbl::Entity> = subway_info_tbl::Entity::find()
                 .order_by_asc(subway_info_tbl::Column::Seq)
                 .limit(batch_size as u64)
@@ -636,7 +714,7 @@ impl QueryService for QueryServicePub {
                     subway_info_tbl::Column::StationEngName,
                     subway_info_tbl::Column::Lat,
                     subway_info_tbl::Column::Lng,
-                    subway_info_tbl::Column::StationLoadAddr
+                    subway_info_tbl::Column::StationLoadAddr,
                 ]);
 
             if let Some(seq) = last_seq {
@@ -648,11 +726,10 @@ impl QueryService for QueryServicePub {
             if subway_results.is_empty() {
                 break;
             }
-            
+
             total_subway_infos.append(&mut subway_results);
             last_seq = total_subway_infos.last().map(|s| s.seq);
         }
-
 
         Ok(total_subway_infos)
     }

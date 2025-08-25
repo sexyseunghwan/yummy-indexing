@@ -4,10 +4,10 @@ use crate::services::analyzer_service::*;
 use crate::services::es_query_service::*;
 use crate::services::query_service::*;
 
-use crate::configuration::{index_schedules_config::*};
+use crate::configuration::index_schedules_config::*;
 
-use crate::models::{auto_complete::*, auto_search_keyword::*, 
-    store_to_elastic::*, subway_info::*
+use crate::models::{
+    auto_complete::*, auto_search_keyword::*, store_to_elastic::*, subway_info::*,
 };
 
 use crate::utils_module::time_utils::*;
@@ -57,7 +57,7 @@ impl<
 
         Ok(())
     }
-    
+
     #[doc = "Store 객체를 정적색인 해주는 함수"]
     /// # Arguments
     /// * `index_schedule` - 인덱스 스케쥴 객체
@@ -76,9 +76,9 @@ impl<
             .query_service
             .get_all_store_table(&index_schedule, cur_utc_date)
             .await?;
-        
+
         /* 위치정보를 geopoint 형식으로 재정의 하기 위함 */
-        
+
         /* Elasticsearch 에 데이터 색인. */
         self.es_query_service
             .post_indexing_data_by_bulk_static::<DistinctStoreResult>(
@@ -96,7 +96,7 @@ impl<
 
         Ok(())
     }
-    
+
     #[doc = "Store 객체를 증분색인 해주는 함수"]
     /// # Arguments
     /// * `index_schedule` - 인덱스 스케쥴 객체
@@ -114,7 +114,7 @@ impl<
             .query_service
             .get_recent_date_from_elastic_index_info(&index_schedule)
             .await?;
-        
+
         /*
             증분색인은 Delete -> Create 로 나눔
             일단 수정되거나 새로 등록된 데이터를 기준으로 하는 상점 데이터를 모두 지워준다.
@@ -156,21 +156,21 @@ impl<
         Ok(())
     }
 
-
     #[doc = "입력된 항목 리스트에서 초성(Chosung)을 추출하여 `AutoComplete` 리스트로 변환한다."]
     /// # Arguments
     /// * `items` - 문자열로 변환 가능한 항목들의 반복 가능한 컬렉션
     /// * `to_string` - 각 항목을 `String`으로 변환하는 함수
     ///
     /// # Returns
-    /// * Vec<AutoComplete> 
+    /// * Vec<AutoComplete>
     fn to_auto_complete_list<T>(
         &self,
         items: impl IntoIterator<Item = T>,
         to_string: impl Fn(T) -> String,
         to_integer: impl Fn(T) -> i32,
     ) -> Vec<AutoComplete>
-    where T: Clone
+    where
+        T: Clone,
     {
         items
             .into_iter()
@@ -198,17 +198,19 @@ impl<
 
         /* 자동완성 키워드 데이터 리스트 */
         let mut auto_completes: Vec<AutoComplete> = Vec::new();
-        
+
         /* 1. 자동 완성 키워드 */
-        let auto_keyword_list: Vec<AutoSearchKeyword> = 
-            self.query_service.get_auto_search_keyword_by_batch(&index_schedule).await?;
-        
-        let mut auto_complete_keyword: Vec<AutoComplete> =
-            self.to_auto_complete_list(
-                auto_keyword_list,  
-                |a: AutoSearchKeyword| a.keyword, 
-                |a: AutoSearchKeyword| a.keyword_weight);
-        
+        let auto_keyword_list: Vec<AutoSearchKeyword> = self
+            .query_service
+            .get_auto_search_keyword_by_batch(&index_schedule)
+            .await?;
+
+        let mut auto_complete_keyword: Vec<AutoComplete> = self.to_auto_complete_list(
+            auto_keyword_list,
+            |a: AutoSearchKeyword| a.keyword,
+            |a: AutoSearchKeyword| a.keyword_weight,
+        );
+
         auto_completes.append(&mut auto_complete_keyword);
         /* 1. 상점 이름 리스트 */
         // let store_auto_complete: Vec<StoreAutoComplete> = self
@@ -222,7 +224,7 @@ impl<
         // /* 2. 지역이름 키워드 데이터 리스트 */
         // let location_auto_complete: Vec<String> = self.query_service.get_locations_name().await?;
 
-        // let mut auto_complete_location: Vec<AutoComplete> = 
+        // let mut auto_complete_location: Vec<AutoComplete> =
         //     self.to_auto_complete_list(location_auto_complete, |s: String| s);
 
         // auto_completes.append(&mut auto_complete_store);
@@ -230,13 +232,10 @@ impl<
 
         /* 자동완성 키워드 데이터 리스트 */
         //let mut auto_completes: Vec<AutoComplete> = Vec::new();
-        
+
         /* Elasticsearch 에 데이터 색인. */
         self.es_query_service
-            .post_indexing_data_by_bulk_static::<AutoComplete>(
-                &index_schedule,
-                &auto_completes,
-            )
+            .post_indexing_data_by_bulk_static::<AutoComplete>(&index_schedule, &auto_completes)
             .await?;
 
         /* 색인시간 최신화 */
@@ -247,29 +246,30 @@ impl<
         Ok(())
     }
 
-
     #[doc = "지하철 관련 정보를 정적색인해주는 함수"]
     /// # Arguments
     /// * `index_schedule` - 인덱스 스케쥴 객체
     ///
     /// # Returns
     /// * Result<(), anyhow::Error>
-    pub async fn subway_static_index(&self, index_schedule: IndexSchedules) -> Result<(), anyhow::Error> {
-
+    pub async fn subway_static_index(
+        &self,
+        index_schedule: IndexSchedules,
+    ) -> Result<(), anyhow::Error> {
         /* 현재기준 UTC 시간 */
         let cur_utc_date: NaiveDateTime = get_current_utc_naive_datetime();
-        
-        let subway_infos: Vec<SubwayInfo> = self.query_service.get_subway_info_by_batch(&index_schedule).await?;
+
+        let subway_infos: Vec<SubwayInfo> = self
+            .query_service
+            .get_subway_info_by_batch(&index_schedule)
+            .await?;
         let subway_infos_es: Vec<SubwayInfoEs> = subway_infos.iter().map(|s| s.to_es()).collect();
 
         /* Elasticsearch 에 데이터 색인. */
         self.es_query_service
-            .post_indexing_data_by_bulk_static::<SubwayInfoEs>(
-                &index_schedule,
-                &subway_infos_es,
-            )
+            .post_indexing_data_by_bulk_static::<SubwayInfoEs>(&index_schedule, &subway_infos_es)
             .await?;
-        
+
         /* 색인시간 최신화 */
         self.query_service
             .update_recent_date_to_elastic_index_info(&index_schedule, cur_utc_date)

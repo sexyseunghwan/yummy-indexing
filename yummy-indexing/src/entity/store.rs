@@ -3,13 +3,12 @@
 use sea_orm::entity::prelude::*;
 
 use crate::entity::store;
+use crate::entity::store_category_tbl;
 use crate::entity::store_location_info_tbl;
 use crate::entity::store_location_road_info_tbl;
 use crate::entity::store_recommend_tbl;
-use crate::entity::zero_possible_market;
-use crate::entity::store_category_tbl;
 use crate::entity::store_reviews;
-
+use crate::entity::zero_possible_market;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]
 #[sea_orm(table_name = "store")]
@@ -40,7 +39,7 @@ pub enum Relation {
     #[sea_orm(has_one = "super::store_category_tbl::Entity")]
     StoreCategoryTbl,
     #[sea_orm(has_many = "super::store_reviews::Entity")]
-    StoreReview
+    StoreReview,
 }
 
 impl Related<zero_possible_market::Entity> for store::Entity {
@@ -78,6 +77,5 @@ impl Related<store_reviews::Entity> for store::Entity {
         Relation::StoreReview.def()
     }
 }
-
 
 impl ActiveModelBehavior for ActiveModel {}
